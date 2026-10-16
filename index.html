@@ -87,28 +87,30 @@
     <!-- ВЕРХНЯЯ ПАНЕЛЬ TELEGRAM MINI APP (С ПОДДЕРЖКОЙ НАТИВНОЙ BACKBUTTON) -->
     <div class="sticky top-0 z-40 backdrop-blur-md bg-tg-headerBg/95 border-b border-tg-border">
         <div class="max-w-xl mx-auto px-3 py-2.5 flex items-center justify-between gap-2">
-            <!-- Левая часть: Кнопка Назад / Закрыть (симулятор BackButton) -->
-            <div class="flex items-center min-w-[90px]">
-                <button id="sim-back-btn" onclick="handleBackButton()" class="hidden items-center gap-1 text-xs font-semibold text-tg-link hover:opacity-80 active:scale-95 transition py-1 px-2 rounded-xl bg-tg-secBg border border-tg-border">
+            <!-- Левая часть: Кнопка Назад (появляется только во вложенных экранах) -->
+            <div class="flex items-center min-w-[76px]">
+                <button id="sim-back-btn" onclick="handleBackButton()" class="hidden items-center gap-1 text-xs font-semibold text-tg-link hover:opacity-80 active:scale-95 transition py-1 px-2.5 rounded-xl bg-tg-secBg border border-tg-border">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7"/>
                     </svg>
                     <span>Назад</span>
                 </button>
-                <span id="sim-close-label" class="text-xs font-medium text-tg-hint px-1.5">Закрыть</span>
             </div>
 
-            <!-- Центр: Название Mini App и статус бота -->
+            <!-- Центр: Название Mini App и статус автосохранения -->
             <div class="text-center flex-1 truncate">
                 <div class="flex items-center justify-center gap-1.5">
                     <h1 class="text-sm font-bold tracking-tight text-tg-text truncate">EduPay • Баланс уроков (₽)</h1>
                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 font-semibold border border-sky-500/20">TMA</span>
                 </div>
-                <p id="tg-user-greeting" class="text-[11px] text-tg-hint truncate">💾 LocalStorage + ☁️ TG CloudStorage</p>
+                <div class="flex items-center justify-center gap-1.5 mt-0.5">
+                    <p id="tg-user-greeting" class="text-[11px] text-tg-hint truncate">Автосохранение активно</p>
+                    <span id="live-save-indicator" class="text-[10px] font-medium text-emerald-400">• ✓ Сохранено</span>
+                </div>
             </div>
 
             <!-- Правая часть: Индикатор Haptic + Переключатель темы -->
-            <div class="flex items-center justify-end gap-1.5 min-w-[90px]">
+            <div class="flex items-center justify-end gap-1.5 min-w-[76px]">
                 <div id="haptic-badge" class="opacity-0 transition-opacity duration-200 px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-400 border border-amber-500/30">
                     ⚡ Haptic
                 </div>
@@ -416,7 +418,7 @@
 
     <!-- МОДАЛЬНОЕ ОКНО: ДОБАВЛЕНИЕ / РЕДАКТИРОВАНИЕ СТУДЕНТА -->
     <div id="modal-student" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="bg-tg-cardBg w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-tg-border p-4 sm:p-5 space-y-4 animate-slide-up max-h-[92vh] overflow-y-auto pb-24 sm:pb-6">
+        <div class="bg-tg-cardBg w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-tg-border p-4 sm:p-5 space-y-4 animate-slide-up max-h-[92vh] overflow-y-auto pb-8 sm:pb-6">
             <div class="flex items-center justify-between border-b border-tg-border pb-3">
                 <h3 id="modal-student-title" class="text-base font-bold text-tg-text">Новый студент</h3>
                 <button onclick="closeModals()" class="p-1.5 rounded-full bg-tg-secBg text-tg-hint hover:text-tg-text">
@@ -512,7 +514,7 @@
 
     <!-- МОДАЛЬНОЕ ОКНО: ВНЕСЕНИЕ ОПЛАТЫ (БЕЗ СПОСОБОВ ОПЛАТЫ, ТОЛЬКО РУБЛИ ₽) -->
     <div id="modal-payment" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-        <div class="bg-tg-cardBg w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-tg-border p-4 sm:p-5 space-y-4 animate-slide-up pb-24 sm:pb-6">
+        <div class="bg-tg-cardBg w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-tg-border p-4 sm:p-5 space-y-4 animate-slide-up pb-8 sm:pb-6">
             <div class="flex items-center justify-between border-b border-tg-border pb-3">
                 <div>
                     <h3 class="text-base font-bold text-tg-text">Внести оплату в ₽</h3>
@@ -656,7 +658,9 @@
                 try {
                     if (typeof tg.setHeaderColor === 'function') tg.setHeaderColor(headerColor);
                     if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor(bgColor);
-                    if (typeof tg.enableClosingConfirmation === 'function') tg.enableClosingConfirmation();
+                    // Отключаем системное предупреждение "Changes that you made may not be saved",
+                    // так как все изменения мгновенно сохраняются автоматически
+                    if (typeof tg.disableClosingConfirmation === 'function') tg.disableClosingConfirmation();
                 } catch (e) {}
             }
         }
@@ -666,6 +670,9 @@
                 isRealTelegram = true;
                 tg.ready();
                 tg.expand();
+                if (typeof tg.disableClosingConfirmation === 'function') {
+                    tg.disableClosingConfirmation();
+                }
                 document.getElementById('sdk-env-badge').textContent = 'Telegram Native';
                 document.getElementById('sdk-env-badge').className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400';
 
@@ -690,7 +697,7 @@
 
                 if (tg.initDataUnsafe.user) {
                     const u = tg.initDataUnsafe.user;
-                    document.getElementById('tg-user-greeting').textContent = `Преподаватель: ${u.first_name} ${u.last_name || ''}`;
+                    document.getElementById('tg-user-greeting').textContent = `Преподаватель: ${u.first_name} ${u.last_name || ''}`.trim();
                 }
 
                 if (tg.BackButton) {
@@ -700,7 +707,7 @@
                     tg.MainButton.onClick(() => handleMainButtonClick());
                 }
 
-                logSDK('Telegram.WebApp.ready(), expand() & HeaderColor выполнены');
+                logSDK('Telegram.WebApp.ready(), expand() & disableClosingConfirmation() выполнены');
             } else {
                 document.documentElement.classList.add('dark');
                 logSDK('Запущен в режиме браузерного симулятора TMA SDK');
@@ -755,12 +762,16 @@
             mainButtonAction = callback;
             const simBar = document.getElementById('sim-main-button-bar');
             const simText = document.getElementById('sim-main-button-text');
-            if (simText) simText.textContent = text;
-            if (simBar) simBar.classList.remove('hidden');
 
-            if (tg && tg.MainButton) {
+            if (isRealTelegram && tg && tg.MainButton) {
+                // В реальном Telegram скрываем HTML-дубликат и показываем только нижнюю нативную кнопку Telegram
+                if (simBar) simBar.classList.add('hidden');
                 tg.MainButton.setText(text);
                 tg.MainButton.show();
+            } else {
+                // В обычном браузере вне Telegram показываем нижнюю панель-симулятор
+                if (simText) simText.textContent = text;
+                if (simBar) simBar.classList.remove('hidden');
             }
             logSDK(`MainButton.show("${text}")`);
         }
@@ -784,13 +795,9 @@
 
         function showBackButton() {
             const backBtn = document.getElementById('sim-back-btn');
-            const closeLabel = document.getElementById('sim-close-label');
             if (backBtn) {
                 backBtn.classList.remove('hidden');
                 backBtn.classList.add('flex');
-            }
-            if (closeLabel) {
-                closeLabel.classList.add('hidden');
             }
             if (tg && tg.BackButton) {
                 tg.BackButton.show();
@@ -800,13 +807,9 @@
 
         function hideBackButton() {
             const backBtn = document.getElementById('sim-back-btn');
-            const closeLabel = document.getElementById('sim-close-label');
             if (backBtn) {
                 backBtn.classList.add('hidden');
                 backBtn.classList.remove('flex');
-            }
-            if (closeLabel) {
-                closeLabel.classList.remove('hidden');
             }
             if (tg && tg.BackButton) {
                 tg.BackButton.hide();
@@ -1134,14 +1137,36 @@
 
         function loadDataFromLocal() {
             try {
-                const savedSt = localStorage.getItem(STORAGE_KEY_STUDENTS);
-                const savedEv = localStorage.getItem(STORAGE_KEY_EVENTS);
-                students = savedSt ? JSON.parse(savedSt) : JSON.parse(JSON.stringify(defaultStudents));
-                eventsLog = savedEv ? JSON.parse(savedEv) : JSON.parse(JSON.stringify(defaultEvents));
+                const rawSt = localStorage.getItem(STORAGE_KEY_STUDENTS);
+                const rawEv = localStorage.getItem(STORAGE_KEY_EVENTS);
+                students = rawSt ? JSON.parse(rawSt) : JSON.parse(JSON.stringify(defaultStudents));
+                eventsLog = rawEv ? JSON.parse(rawEv) : JSON.parse(JSON.stringify(defaultEvents));
             } catch (e) {
                 students = JSON.parse(JSON.stringify(defaultStudents));
                 eventsLog = JSON.parse(JSON.stringify(defaultEvents));
             }
+        }
+
+        function markLiveSaveStatus(text = '• ✓ Сохранено', isSaving = false) {
+            const el = document.getElementById('live-save-indicator');
+            if (!el) return;
+            el.textContent = text;
+            el.className = isSaving
+                ? 'text-[10px] font-medium text-sky-400 animate-pulse'
+                : 'text-[10px] font-medium text-emerald-400';
+        }
+
+        function flushSessionNow() {
+            if (!Array.isArray(students) || students.length === 0) return;
+            if (eventsLog.length > MAX_EVENTS_HISTORY) {
+                eventsLog = eventsLog.slice(0, MAX_EVENTS_HISTORY);
+            }
+            try {
+                localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
+                localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(eventsLog));
+            } catch (e) {}
+            syncDataToTelegramCloud(false);
+            markLiveSaveStatus('• ✓ Сохранено', false);
         }
 
         function loadData() {
@@ -1153,14 +1178,8 @@
         }
 
         function saveData() {
-            if (eventsLog.length > MAX_EVENTS_HISTORY) {
-                eventsLog = eventsLog.slice(0, MAX_EVENTS_HISTORY);
-            }
-            try {
-                localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
-                localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(eventsLog));
-            } catch (e) {}
-            syncDataToTelegramCloud(false);
+            markLiveSaveStatus('• Сохранение...', true);
+            flushSessionNow();
             updateAllViews();
         }
 
@@ -2357,6 +2376,15 @@
             setFilterStatus('all');
             updateAllViews();
         });
+
+        // Гарантированное сохранение сессии при сворачивании, переключении вкладки или закрытии окна Telegram
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                flushSessionNow();
+            }
+        });
+        window.addEventListener('pagehide', () => flushSessionNow());
+        window.addEventListener('beforeunload', () => flushSessionNow());
     </script>
 </body>
 </html>
