@@ -1,0 +1,2362 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EduPay TMA — Учет уроков и оплат в ₽</title>
+    <!-- Подключение официального скрипта Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+                    },
+                    colors: {
+                        tg: {
+                            bg: 'var(--tg-bg)',
+                            secBg: 'var(--tg-sec-bg)',
+                            cardBg: 'var(--tg-card-bg)',
+                            headerBg: 'var(--tg-header-bg)',
+                            text: 'var(--tg-text)',
+                            hint: 'var(--tg-hint)',
+                            link: 'var(--tg-link)',
+                            btn: 'var(--tg-btn)',
+                            btnText: 'var(--tg-btn-text)',
+                            border: 'var(--tg-border)'
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+
+    <style>
+        :root {
+            --tg-bg: #f1f5f9;
+            --tg-sec-bg: #e2e8f0;
+            --tg-card-bg: #ffffff;
+            --tg-header-bg: #ffffff;
+            --tg-text: #0f172a;
+            --tg-hint: #64748b;
+            --tg-link: #0284c7;
+            --tg-btn: #0284c7;
+            --tg-btn-text: #ffffff;
+            --tg-border: rgba(15, 23, 42, 0.08);
+        }
+
+        html.dark {
+            --tg-bg: #0f172a;
+            --tg-sec-bg: #1e293b;
+            --tg-card-bg: #172133;
+            --tg-header-bg: #172133;
+            --tg-text: #f8fafc;
+            --tg-hint: #94a3b8;
+            --tg-link: #38bdf8;
+            --tg-btn: #0ea5e9;
+            --tg-btn-text: #ffffff;
+            --tg-border: rgba(255, 255, 255, 0.08);
+        }
+
+        body {
+            background-color: var(--tg-bg);
+            color: var(--tg-text);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-28 font-sans antialiased selection:bg-sky-500/20">
+
+    <!-- ВЕРХНЯЯ ПАНЕЛЬ TELEGRAM MINI APP (С ПОДДЕРЖКОЙ НАТИВНОЙ BACKBUTTON) -->
+    <div class="sticky top-0 z-40 backdrop-blur-md bg-tg-headerBg/95 border-b border-tg-border">
+        <div class="max-w-xl mx-auto px-3 py-2.5 flex items-center justify-between gap-2">
+            <!-- Левая часть: Кнопка Назад / Закрыть (симулятор BackButton) -->
+            <div class="flex items-center min-w-[90px]">
+                <button id="sim-back-btn" onclick="handleBackButton()" class="hidden items-center gap-1 text-xs font-semibold text-tg-link hover:opacity-80 active:scale-95 transition py-1 px-2 rounded-xl bg-tg-secBg border border-tg-border">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7"/>
+                    </svg>
+                    <span>Назад</span>
+                </button>
+                <span id="sim-close-label" class="text-xs font-medium text-tg-hint px-1.5">Закрыть</span>
+            </div>
+
+            <!-- Центр: Название Mini App и статус бота -->
+            <div class="text-center flex-1 truncate">
+                <div class="flex items-center justify-center gap-1.5">
+                    <h1 class="text-sm font-bold tracking-tight text-tg-text truncate">EduPay • Баланс уроков (₽)</h1>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 font-semibold border border-sky-500/20">TMA</span>
+                </div>
+                <p id="tg-user-greeting" class="text-[11px] text-tg-hint truncate">💾 LocalStorage + ☁️ TG CloudStorage</p>
+            </div>
+
+            <!-- Правая часть: Индикатор Haptic + Переключатель темы -->
+            <div class="flex items-center justify-end gap-1.5 min-w-[90px]">
+                <div id="haptic-badge" class="opacity-0 transition-opacity duration-200 px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    ⚡ Haptic
+                </div>
+                <button onclick="toggleTheme()" title="Переключить тему Telegram" class="p-2 rounded-xl bg-tg-secBg text-tg-text hover:opacity-80 active:scale-95 transition border border-tg-border">
+                    <svg id="theme-icon-dark" class="w-4 h-4 hidden dark:block text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/>
+                    </svg>
+                    <svg id="theme-icon-light" class="w-4 h-4 block dark:hidden text-slate-700" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ОСНОВНОЙ КОНТЕЙНЕР ПРИЛОЖЕНИЯ -->
+    <main class="max-w-xl mx-auto px-3 pt-3 space-y-4">
+
+        <!-- ВКЛАДКА 1: ДАШБОРД И СПИСОК СТУДЕНТОВ -->
+        <section id="view-dashboard" class="space-y-4 animate-fade-in">
+            
+            <!-- Карточка сводной аналитики (строго в ₽) -->
+            <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border shadow-sm relative overflow-hidden">
+                <div class="flex items-start justify-between gap-2 mb-3">
+                    <div>
+                        <span class="text-[11px] font-medium text-tg-hint uppercase tracking-wider">Получено оплат за период</span>
+                        <div class="flex items-baseline gap-2 mt-0.5 flex-wrap">
+                            <h2 id="stat-received-rub" class="text-2xl font-bold text-tg-text">0 ₽</h2>
+                            <span id="stat-earned-badge" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/20">
+                                Отработано: 0 ₽ (0 ур.)
+                            </span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[11px] font-medium text-tg-hint block">К оплате / Долг</span>
+                        <span id="stat-to-pay-rub" class="text-sm font-bold text-rose-400">0 ₽</span>
+                    </div>
+                </div>
+
+                <!-- Прогресс-бар структуры балансов студентов -->
+                <div class="w-full h-2.5 bg-tg-secBg rounded-full overflow-hidden flex gap-0.5 p-0.5 border border-tg-border">
+                    <div id="bar-positive" class="h-full bg-emerald-500 rounded-l-full transition-all duration-500" style="width: 60%"></div>
+                    <div id="bar-zero" class="h-full bg-amber-400 transition-all duration-500" style="width: 25%"></div>
+                    <div id="bar-debt" class="h-full bg-rose-500 rounded-r-full transition-all duration-500" style="width: 15%"></div>
+                </div>
+
+                <!-- 3 интерактивные плитки по статусу баланса уроков -->
+                <div class="grid grid-cols-3 gap-2 mt-3.5">
+                    <button onclick="setFilterStatus('positive')" class="text-left p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/15 active:scale-95 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-medium text-emerald-400">Есть баланс</span>
+                            <span id="count-positive" class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300">0</span>
+                        </div>
+                        <p id="stat-positive-rub" class="text-xs sm:text-sm font-bold text-tg-text mt-1 truncate">0 ур.</p>
+                        <p id="stat-positive-sub" class="text-[10px] text-tg-hint truncate">на 0 ₽</p>
+                    </button>
+
+                    <button onclick="setFilterStatus('zero')" class="text-left p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/15 active:scale-95 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-medium text-amber-400">Пора платить</span>
+                            <span id="count-zero" class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300">0</span>
+                        </div>
+                        <p id="stat-zero-rub" class="text-xs sm:text-sm font-bold text-tg-text mt-1 truncate">0 ₽</p>
+                        <p class="text-[10px] text-tg-hint truncate">баланс 0 ур.</p>
+                    </button>
+
+                    <button onclick="setFilterStatus('debt')" class="text-left p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/15 active:scale-95 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-medium text-rose-400">Долг (&lt; 0 ур.)</span>
+                            <span id="count-debt" class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300">0</span>
+                        </div>
+                        <p id="stat-debt-rub" class="text-xs sm:text-sm font-bold text-rose-400 mt-1 truncate">0 ₽</p>
+                        <p id="stat-debt-sub" class="text-[10px] text-tg-hint truncate">0 ур. в долг</p>
+                    </button>
+                </div>
+
+                <!-- Быстрые действия -->
+                <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-tg-border">
+                    <button onclick="openStudentModal()" class="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-tg-btn text-tg-btnText font-semibold text-xs shadow-sm hover:opacity-95 active:scale-95 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        <span>Новый студент</span>
+                    </button>
+                    <button onclick="openQuickPaymentModal()" class="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-tg-secBg text-tg-link font-semibold text-xs border border-tg-border hover:opacity-90 active:scale-95 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <span>Внести оплату (₽)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Панель поиска и фильтрации студентов (по типу оплаты и статусу баланса) -->
+            <div class="bg-tg-cardBg rounded-2xl p-3 border border-tg-border space-y-2.5">
+                <!-- Строка поиска + фильтр типа оплаты -->
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <svg class="w-4 h-4 text-tg-hint absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <input 
+                            id="search-input" 
+                            type="text" 
+                            oninput="renderStudents()" 
+                            placeholder="Поиск по имени или @username..." 
+                            class="w-full pl-9 pr-8 py-2 bg-tg-secBg text-tg-text placeholder-tg-hint text-xs rounded-xl border border-tg-border focus:outline-none focus:border-sky-500 transition"
+                        >
+                        <button id="clear-search-btn" onclick="clearSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-tg-hint hover:text-tg-text">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <select id="paytype-filter" onchange="renderStudents()" class="bg-tg-secBg text-tg-text text-xs font-medium rounded-xl px-2.5 py-2 border border-tg-border focus:outline-none max-w-[165px] truncate">
+                        <option value="all">Все типы оплаты</option>
+                        <option value="package">📦 Пакет уроков</option>
+                        <option value="per_lesson">⚡ После каждого урока</option>
+                    </select>
+                </div>
+
+                <!-- Табы фильтра по статусу баланса уроков -->
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                    <button onclick="setFilterStatus('all')" data-status-btn="all" class="status-pill px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition">
+                        Все
+                    </button>
+                    <button onclick="setFilterStatus('debt')" data-status-btn="debt" class="status-pill px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                        Долг (&lt; 0 ур.)
+                    </button>
+                    <button onclick="setFilterStatus('zero')" data-status-btn="zero" class="status-pill px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                        Пора платить (0 ур.)
+                    </button>
+                    <button onclick="setFilterStatus('positive')" data-status-btn="positive" class="status-pill px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Есть баланс
+                    </button>
+                </div>
+            </div>
+
+            <!-- Заголовок списка + сортировка -->
+            <div class="flex items-center justify-between px-1">
+                <span id="students-Result-count" class="text-xs font-semibold text-tg-hint uppercase tracking-wider">Студенты (0)</span>
+                <button onclick="cycleSortOrder()" id="sort-btn" class="text-xs font-medium text-tg-link flex items-center gap-1 active:scale-95 transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/>
+                    </svg>
+                    <span id="sort-label">Сначала долг и 0 ур.</span>
+                </button>
+            </div>
+
+            <!-- Контейнер карточек студентов -->
+            <div id="students-list" class="space-y-2.5"></div>
+
+        </section>
+
+        <!-- ВКЛАДКА 2: ДЕТАЛЬНАЯ КАРТОЧКА СТУДЕНТА -->
+        <section id="view-student-detail" class="hidden space-y-4 animate-fade-in">
+            <div id="student-detail-content"></div>
+        </section>
+
+        <!-- ВКЛАДКА 3: ЖУРНАЛ СОБЫТИЙ (ОПЛАТЫ И СПИСАНИЯ УРОКОВ) -->
+        <section id="view-transactions" class="hidden space-y-3 animate-fade-in">
+            <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-tg-text">Журнал событий</h2>
+                        <p class="text-xs text-tg-hint">Поступления оплат (₽) и списания за проведенные уроки</p>
+                    </div>
+                    <button onclick="openQuickPaymentModal()" class="px-3 py-1.5 rounded-xl bg-tg-btn text-tg-btnText text-xs font-semibold active:scale-95 transition">
+                        + Оплата (₽)
+                    </button>
+                </div>
+
+                <!-- Фильтр по типу события (строго без способов оплаты) -->
+                <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                    <button onclick="setTxTypeFilter('all')" data-tx-btn="all" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-btn text-tg-btnText whitespace-nowrap transition">Все события</button>
+                    <button onclick="setTxTypeFilter('payment')" data-tx-btn="payment" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-secBg text-tg-hint hover:text-tg-text whitespace-nowrap transition">💰 Поступления оплат (₽)</button>
+                    <button onclick="setTxTypeFilter('lesson')" data-tx-btn="lesson" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-secBg text-tg-hint hover:text-tg-text whitespace-nowrap transition">🎓 Проведенные уроки</button>
+                </div>
+            </div>
+
+            <div id="transactions-list" class="space-y-2"></div>
+        </section>
+
+        <!-- ВКЛАДКА 4: ОТЧЕТЫ, ЭКСПОРТ И TELEGRAM BOT SDK -->
+        <section id="view-reports" class="hidden space-y-4 animate-fade-in">
+            <!-- Генератор текстового отчета для Telegram -->
+            <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-base font-bold text-tg-text">Отчет для Telegram</h2>
+                        <p class="text-xs text-tg-hint">Сводка по доходам в ₽, проведенным урокам и должникам</p>
+                    </div>
+                    <span class="text-xl">📊</span>
+                </div>
+
+                <pre id="report-preview" class="p-3 rounded-xl bg-tg-secBg text-tg-text text-xs font-mono whitespace-pre-wrap leading-relaxed border border-tg-border max-h-64 overflow-y-auto select-all"></pre>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="copyReportToClipboard()" class="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-tg-btn text-tg-btnText text-xs font-semibold active:scale-95 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                        </svg>
+                        <span>Скопировать отчет</span>
+                    </button>
+                    <button onclick="exportCSV()" class="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-tg-secBg text-tg-text text-xs font-semibold border border-tg-border active:scale-95 transition">
+                        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        <span>Скачать CSV (Excel)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Панель управления гибридным хранилищем -->
+            <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border space-y-3">
+                <div class="flex items-start justify-between gap-2">
+                    <div>
+                        <h3 class="text-sm font-bold text-tg-text flex items-center gap-1.5">
+                            <span>☁️ Хранилище данных (Без своего БД-сервера)</span>
+                        </h3>
+                        <p class="text-xs text-tg-hint mt-0.5">Мгновенный кэш в <code class="text-tg-link">localStorage</code> + синхронизация через <code class="text-tg-link">CloudStorage</code></p>
+                    </div>
+                    <span id="storage-status-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shrink-0">
+                        Сохранено
+                    </span>
+                </div>
+
+                <!-- Метрики объема данных и лимитов CloudStorage -->
+                <div class="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-tg-secBg border border-tg-border text-center">
+                    <div>
+                        <span class="text-[10px] text-tg-hint block">Режим хранения</span>
+                        <span id="storage-mode-label" class="text-xs font-bold text-tg-text">Local + Cloud Sim</span>
+                    </div>
+                    <div class="border-x border-tg-border px-1">
+                        <span class="text-[10px] text-tg-hint block">Объем базы</span>
+                        <span id="storage-size-label" class="text-xs font-bold text-sky-400">0 КБ</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-tg-hint block">Ключей в TG Cloud</span>
+                        <span id="storage-chunks-label" class="text-xs font-bold text-emerald-400">2 / 1024</span>
+                    </div>
+                </div>
+
+                <!-- Кнопки синхронизации с CloudStorage -->
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <button onclick="forceSyncToCloud()" class="p-2.5 rounded-xl bg-sky-500/15 border border-sky-500/30 text-left hover:bg-sky-500/20 active:scale-95 transition">
+                        <div class="font-semibold text-sky-400">☁️ Выгрузить в TG Cloud</div>
+                        <div class="text-[10px] text-tg-hint mt-0.5">CloudStorage.setItem()</div>
+                    </button>
+                    <button onclick="forceLoadFromCloud()" class="p-2.5 rounded-xl bg-tg-secBg border border-tg-border text-left hover:border-sky-500/40 active:scale-95 transition">
+                        <div class="font-semibold text-tg-text">📲 Загрузить из TG Cloud</div>
+                        <div class="text-[10px] text-tg-hint mt-0.5">CloudStorage.getItems()</div>
+                    </button>
+                </div>
+
+                <!-- Файловый бэкап JSON -->
+                <div class="flex items-center justify-between gap-2 pt-2 border-t border-tg-border">
+                    <button onclick="exportFullJsonBackup()" class="flex-1 py-2 px-3 rounded-xl bg-tg-secBg text-tg-text text-xs font-semibold border border-tg-border hover:border-sky-500/40 active:scale-95 transition">
+                        💾 Скачать бэкап (.json)
+                    </button>
+                    <label class="flex-1 py-2 px-3 rounded-xl bg-tg-secBg text-tg-link text-xs font-semibold border border-tg-border hover:border-sky-500/40 active:scale-95 transition text-center cursor-pointer">
+                        📂 Загрузить (.json)
+                        <input type="file" accept=".json,application/json" onchange="importFullJsonBackup(event)" class="hidden">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Панель интеграции Telegram WebApp SDK -->
+            <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-tg-text">Интеграция Telegram Web App SDK</h3>
+                        <p class="text-xs text-tg-hint">Тестирование методов <code class="text-tg-link">window.Telegram.WebApp</code></p>
+                    </div>
+                    <span id="sdk-env-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400">Browser Sim</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <button onclick="triggerHaptic('medium')" class="p-2.5 rounded-xl bg-tg-secBg border border-tg-border text-left hover:border-sky-500/40 active:scale-95 transition">
+                        <div class="font-semibold text-tg-text">📳 HapticFeedback</div>
+                        <div class="text-[11px] text-tg-hint mt-0.5">Отклик при списании урока</div>
+                    </button>
+                    <button onclick="sendReportToBot()" class="p-2.5 rounded-xl bg-tg-secBg border border-tg-border text-left hover:border-sky-500/40 active:scale-95 transition">
+                        <div class="font-semibold text-tg-text">🤖 WebApp.sendData()</div>
+                        <div class="text-[11px] text-tg-hint mt-0.5">Отправить JSON-сводку боту</div>
+                    </button>
+                </div>
+
+                <!-- Лог вызовов Telegram SDK -->
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[11px] font-semibold text-tg-hint uppercase">Консоль событий Telegram SDK</span>
+                        <button onclick="resetDemoData()" class="text-[11px] text-rose-400 hover:underline">Сбросить демо-данные</button>
+                    </div>
+                    <div id="sdk-log" class="p-2.5 rounded-xl bg-slate-950 text-emerald-400 font-mono text-[11px] h-28 overflow-y-auto space-y-1 border border-slate-800"></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- МОДАЛЬНОЕ ОКНО: ДОБАВЛЕНИЕ / РЕДАКТИРОВАНИЕ СТУДЕНТА -->
+    <div id="modal-student" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-tg-cardBg w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-tg-border p-4 sm:p-5 space-y-4 animate-slide-up max-h-[92vh] overflow-y-auto pb-24 sm:pb-6">
+            <div class="flex items-center justify-between border-b border-tg-border pb-3">
+                <h3 id="modal-student-title" class="text-base font-bold text-tg-text">Новый студент</h3>
+                <button onclick="closeModals()" class="p-1.5 rounded-full bg-tg-secBg text-tg-hint hover:text-tg-text">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="form-student" onsubmit="event.preventDefault(); saveStudentFromForm();" class="space-y-3.5">
+                <input type="hidden" id="student-id">
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-xs font-medium text-tg-hint mb-1">Имя и Фамилия *</label>
+                        <input id="student-name" type="text" required placeholder="Например: Алексей Смирнов" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm border border-tg-border focus:outline-none focus:border-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-tg-hint mb-1">Telegram @username</label>
+                        <input id="student-tg" type="text" placeholder="@alex_smirnov" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm border border-tg-border focus:outline-none focus:border-sky-500">
+                    </div>
+                </div>
+
+                <!-- Выбор типа оплаты -->
+                <div>
+                    <label class="block text-xs font-medium text-tg-hint mb-1.5">Формат оплаты обучения *</label>
+                    <input type="hidden" id="student-paytype" value="package">
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" id="btn-paytype-package" onclick="selectFormPayType('package')" class="p-3 rounded-xl border text-left transition flex flex-col justify-between">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm">📦</span>
+                                <span id="check-paytype-package" class="w-2 h-2 rounded-full bg-sky-400"></span>
+                            </div>
+                            <div class="text-xs font-bold text-tg-text mt-1">Пакет уроков</div>
+                            <div class="text-[10px] text-tg-hint leading-tight mt-0.5">Предоплата за абонемент (4, 8, 10 ур.)</div>
+                        </button>
+
+                        <button type="button" id="btn-paytype-per-lesson" onclick="selectFormPayType('per_lesson')" class="p-3 rounded-xl border text-left transition flex flex-col justify-between">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm">⚡</span>
+                                <span id="check-paytype-per-lesson" class="w-2 h-2 rounded-full bg-transparent"></span>
+                            </div>
+                            <div class="text-xs font-bold text-tg-text mt-1">После каждого урока</div>
+                            <div class="text-[10px] text-tg-hint leading-tight mt-0.5">Поурочная оплата за каждое занятие</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Стоимость урока и размер пакета -->
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-xs font-medium text-tg-hint mb-1">Цена 1 урока (₽) *</label>
+                        <input id="student-lesson-price" type="number" required min="100" step="50" oninput="updateStudentModalPreview()" placeholder="2000" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm font-bold border border-tg-border focus:outline-none focus:border-sky-500">
+                    </div>
+
+                    <div id="package-size-wrapper">
+                        <label class="block text-xs font-medium text-tg-hint mb-1">Уроков в пакете *</label>
+                        <div class="flex gap-1.5">
+                            <input id="student-package-size" type="number" min="1" max="100" value="8" oninput="updateStudentModalPreview()" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm font-bold border border-tg-border focus:outline-none focus:border-sky-500">
+                        </div>
+                        <div class="flex gap-1 mt-1">
+                            <button type="button" onclick="setFormPackageSize(4)" class="px-2 py-0.5 rounded bg-tg-secBg text-[10px] text-tg-hint hover:text-tg-text border border-tg-border">4 ур.</button>
+                            <button type="button" onclick="setFormPackageSize(8)" class="px-2 py-0.5 rounded bg-tg-secBg text-[10px] text-tg-hint hover:text-tg-text border border-tg-border">8 ур.</button>
+                            <button type="button" onclick="setFormPackageSize(10)" class="px-2 py-0.5 rounded bg-tg-secBg text-[10px] text-tg-hint hover:text-tg-text border border-tg-border">10 ур.</button>
+                            <button type="button" onclick="setFormPackageSize(12)" class="px-2 py-0.5 rounded bg-tg-secBg text-[10px] text-tg-hint hover:text-tg-text border border-tg-border">12 ур.</button>
+                        </div>
+                    </div>
+
+                    <div id="per-lesson-hint-wrapper" class="hidden flex-col justify-center p-2.5 rounded-xl bg-tg-secBg/70 border border-tg-border">
+                        <span class="text-[11px] font-semibold text-tg-text">Поурочный расчет</span>
+                        <span class="text-[10px] text-tg-hint mt-0.5">Списание 1 урока переводит баланс в -1 ур. (к оплате)</span>
+                    </div>
+                </div>
+
+                <!-- Текущий баланс уроков и заметка -->
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-xs font-medium text-tg-hint mb-1">Текущий баланс (уроков)</label>
+                        <input id="student-balance" type="number" step="1" value="0" oninput="updateStudentModalPreview()" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm font-bold border border-tg-border focus:outline-none focus:border-sky-500">
+                        <span class="text-[10px] text-tg-hint">Можно указать &lt; 0, если есть долг</span>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-tg-hint mb-1">Заметка / Расписание</label>
+                        <input id="student-note" type="text" placeholder="Вт и Чт в 18:00" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm border border-tg-border focus:outline-none focus:border-sky-500">
+                    </div>
+                </div>
+
+                <!-- Сводка по тарифу студента -->
+                <div id="student-form-summary" class="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-xs text-tg-text"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО: ВНЕСЕНИЕ ОПЛАТЫ (БЕЗ СПОСОБОВ ОПЛАТЫ, ТОЛЬКО РУБЛИ ₽) -->
+    <div id="modal-payment" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-tg-cardBg w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-tg-border p-4 sm:p-5 space-y-4 animate-slide-up pb-24 sm:pb-6">
+            <div class="flex items-center justify-between border-b border-tg-border pb-3">
+                <div>
+                    <h3 class="text-base font-bold text-tg-text">Внести оплату в ₽</h3>
+                    <p class="text-[11px] text-tg-hint">Пополнение баланса уроков студента</p>
+                </div>
+                <button onclick="closeModals()" class="p-1.5 rounded-full bg-tg-secBg text-tg-hint hover:text-tg-text">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="form-payment" onsubmit="event.preventDefault(); submitPaymentFromModal();" class="space-y-3.5">
+                <div>
+                    <label class="block text-xs font-medium text-tg-hint mb-1">Студент *</label>
+                    <select id="pay-student-id" onchange="syncPaymentModalWithStudent()" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm font-medium border border-tg-border focus:outline-none"></select>
+                </div>
+
+                <!-- Инфо о текущем тарифе и балансе выбранного студента -->
+                <div id="pay-student-info" class="p-3 rounded-xl bg-tg-secBg border border-tg-border text-xs flex items-center justify-between"></div>
+
+                <!-- Быстрые пресеты количества оплачиваемых уроков -->
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-medium text-tg-hint">Количество оплачиваемых уроков *</label>
+                        <div id="pay-presets" class="flex gap-1"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div>
+                            <div class="relative">
+                                <input id="pay-lessons-count" type="number" required min="1" max="100" value="1" oninput="handlePayLessonsInput()" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm font-bold border border-tg-border focus:outline-none focus:border-sky-500">
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-tg-hint">ур.</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="relative">
+                                <input id="pay-amount" type="number" required min="1" step="50" placeholder="2000" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-emerald-400 text-sm font-bold border border-tg-border focus:outline-none focus:border-sky-500">
+                                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-400">₽</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-medium text-tg-hint mb-1">Комментарий к оплате (необязательно)</label>
+                    <input id="pay-comment" type="text" placeholder="Оплата уроков" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm border border-tg-border focus:outline-none focus:border-sky-500">
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ ДЕЙСТВИЙ (PRODUCTION SAFE CONFIRM) -->
+    <div id="modal-confirm" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-tg-cardBg w-full max-w-sm rounded-2xl border border-tg-border p-4 space-y-4 shadow-xl">
+            <div class="space-y-1">
+                <h3 id="confirm-title" class="text-sm font-bold text-tg-text">Подтверждение</h3>
+                <p id="confirm-message" class="text-xs text-tg-hint leading-relaxed"></p>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="closeConfirmModal()" class="py-2.5 px-3 rounded-xl bg-tg-secBg text-tg-text text-xs font-semibold border border-tg-border active:scale-95 transition">
+                    Отмена
+                </button>
+                <button id="confirm-ok-btn" class="py-2.5 px-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold active:scale-95 transition">
+                    Подтвердить
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ВСПЛЫВАЮЩЕЕ УВЕДОМЛЕНИЕ С ПОДДЕРЖКОЙ КНОПКИ «ОТМЕНИТЬ» (UNDO TOAST) -->
+    <div id="toast-container" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex flex-col items-center gap-2 w-full max-w-md px-3"></div>
+
+    <!-- СИМУЛЯТОР НАТИВНОЙ КНОПКИ TELEGRAM MAINBUTTON -->
+    <div id="sim-main-button-bar" class="fixed bottom-16 left-0 right-0 z-50 hidden px-3 pb-2 pointer-events-none">
+        <div class="max-w-xl mx-auto pointer-events-auto">
+            <button id="sim-main-button" onclick="handleMainButtonClick()" class="w-full py-3.5 px-4 rounded-2xl bg-tg-btn text-tg-btnText font-bold text-sm tracking-wide shadow-lg shadow-sky-500/25 flex items-center justify-center gap-2 active:scale-98 transition">
+                <span id="sim-main-button-text">СОХРАНИТЬ</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- НИЖНЯЯ НАВИГАЦИЯ TELEGRAM MINI APP -->
+    <nav class="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md bg-tg-headerBg/95 border-t border-tg-border">
+        <div class="max-w-xl mx-auto grid grid-cols-3 px-2 py-1.5">
+            <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn flex flex-col items-center justify-center py-1 rounded-xl text-tg-link transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                <span class="text-[11px] font-semibold mt-0.5">Студенты</span>
+            </button>
+
+            <button onclick="switchTab('transactions')" id="nav-transactions" class="nav-btn flex flex-col items-center justify-center py-1 rounded-xl text-tg-hint hover:text-tg-text transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                </svg>
+                <span class="text-[11px] font-semibold mt-0.5">Журнал событий</span>
+            </button>
+
+            <button onclick="switchTab('reports')" id="nav-reports" class="nav-btn flex flex-col items-center justify-center py-1 rounded-xl text-tg-hint hover:text-tg-text transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <span class="text-[11px] font-semibold mt-0.5">Отчет и SDK</span>
+            </button>
+        </div>
+    </nav>
+
+    <script>
+        /********************************************************************
+         * 1. ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP SDK, БЕЗОПАСНОСТЬ И СИМУЛЯТОР
+         ********************************************************************/
+        const tg = window.Telegram ? window.Telegram.WebApp : null;
+        let isRealTelegram = false;
+        let mainButtonAction = null;
+        let confirmActionCallback = null;
+
+        // Защита от XSS-инъекций при рендеринге пользовательского ввода
+        function escapeHTML(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function logSDK(message) {
+            const logEl = document.getElementById('sdk-log');
+            if (!logEl) return;
+            const time = new Date().toLocaleTimeString('ru-RU', { hour12: false });
+            const line = document.createElement('div');
+            line.textContent = `[${time}] ${message}`;
+            logEl.prepend(line);
+        }
+
+        function applyTelegramNativeColors() {
+            const isDark = document.documentElement.classList.contains('dark');
+            const bgColor = isDark ? '#0f172a' : '#f1f5f9';
+            const headerColor = isDark ? '#172133' : '#ffffff';
+            if (isRealTelegram && tg) {
+                try {
+                    if (typeof tg.setHeaderColor === 'function') tg.setHeaderColor(headerColor);
+                    if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor(bgColor);
+                    if (typeof tg.enableClosingConfirmation === 'function') tg.enableClosingConfirmation();
+                } catch (e) {}
+            }
+        }
+
+        function initTelegramSDK() {
+            if (tg && tg.initDataUnsafe && Object.keys(tg.initDataUnsafe).length > 0) {
+                isRealTelegram = true;
+                tg.ready();
+                tg.expand();
+                document.getElementById('sdk-env-badge').textContent = 'Telegram Native';
+                document.getElementById('sdk-env-badge').className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400';
+
+                if (tg.colorScheme === 'light') {
+                    document.documentElement.classList.remove('dark');
+                } else {
+                    document.documentElement.classList.add('dark');
+                }
+
+                applyTelegramNativeColors();
+
+                if (typeof tg.onEvent === 'function') {
+                    tg.onEvent('themeChanged', () => {
+                        if (tg.colorScheme === 'light') {
+                            document.documentElement.classList.remove('dark');
+                        } else {
+                            document.documentElement.classList.add('dark');
+                        }
+                        applyTelegramNativeColors();
+                    });
+                }
+
+                if (tg.initDataUnsafe.user) {
+                    const u = tg.initDataUnsafe.user;
+                    document.getElementById('tg-user-greeting').textContent = `Преподаватель: ${u.first_name} ${u.last_name || ''}`;
+                }
+
+                if (tg.BackButton) {
+                    tg.BackButton.onClick(() => handleBackButton());
+                }
+                if (tg.MainButton) {
+                    tg.MainButton.onClick(() => handleMainButtonClick());
+                }
+
+                logSDK('Telegram.WebApp.ready(), expand() & HeaderColor выполнены');
+            } else {
+                document.documentElement.classList.add('dark');
+                logSDK('Запущен в режиме браузерного симулятора TMA SDK');
+            }
+        }
+
+        // Модальное окно подтверждения
+        function askConfirmation(title, message, onConfirm) {
+            triggerHaptic('warning');
+            confirmActionCallback = onConfirm;
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            const okBtn = document.getElementById('confirm-ok-btn');
+            okBtn.onclick = () => {
+                const cb = confirmActionCallback;
+                closeConfirmModal();
+                if (typeof cb === 'function') cb();
+            };
+            document.getElementById('modal-confirm').classList.remove('hidden');
+        }
+
+        function closeConfirmModal() {
+            confirmActionCallback = null;
+            document.getElementById('modal-confirm').classList.add('hidden');
+        }
+
+        // Вызов HapticFeedback
+        function triggerHaptic(type = 'light') {
+            try {
+                if (tg && tg.HapticFeedback) {
+                    if (type === 'success' || type === 'warning' || type === 'error') {
+                        tg.HapticFeedback.notificationOccurred(type);
+                    } else if (type === 'selection') {
+                        tg.HapticFeedback.selectionChanged();
+                    } else {
+                        tg.HapticFeedback.impactOccurred(type);
+                    }
+                }
+            } catch (e) {}
+
+            const badge = document.getElementById('haptic-badge');
+            if (badge) {
+                badge.textContent = `⚡ ${type}`;
+                badge.classList.remove('opacity-0');
+                clearTimeout(window._hapticTimer);
+                window._hapticTimer = setTimeout(() => badge.classList.add('opacity-0'), 650);
+            }
+            logSDK(`HapticFeedback: ${type}`);
+        }
+
+        function showMainButton(text, callback) {
+            mainButtonAction = callback;
+            const simBar = document.getElementById('sim-main-button-bar');
+            const simText = document.getElementById('sim-main-button-text');
+            if (simText) simText.textContent = text;
+            if (simBar) simBar.classList.remove('hidden');
+
+            if (tg && tg.MainButton) {
+                tg.MainButton.setText(text);
+                tg.MainButton.show();
+            }
+            logSDK(`MainButton.show("${text}")`);
+        }
+
+        function hideMainButton() {
+            mainButtonAction = null;
+            const simBar = document.getElementById('sim-main-button-bar');
+            if (simBar) simBar.classList.add('hidden');
+            if (tg && tg.MainButton) {
+                tg.MainButton.hide();
+            }
+            logSDK('MainButton.hide()');
+        }
+
+        function handleMainButtonClick() {
+            triggerHaptic('medium');
+            if (typeof mainButtonAction === 'function') {
+                mainButtonAction();
+            }
+        }
+
+        function showBackButton() {
+            const backBtn = document.getElementById('sim-back-btn');
+            const closeLabel = document.getElementById('sim-close-label');
+            if (backBtn) {
+                backBtn.classList.remove('hidden');
+                backBtn.classList.add('flex');
+            }
+            if (closeLabel) {
+                closeLabel.classList.add('hidden');
+            }
+            if (tg && tg.BackButton) {
+                tg.BackButton.show();
+            }
+            logSDK('BackButton.show()');
+        }
+
+        function hideBackButton() {
+            const backBtn = document.getElementById('sim-back-btn');
+            const closeLabel = document.getElementById('sim-close-label');
+            if (backBtn) {
+                backBtn.classList.add('hidden');
+                backBtn.classList.remove('flex');
+            }
+            if (closeLabel) {
+                closeLabel.classList.remove('hidden');
+            }
+            if (tg && tg.BackButton) {
+                tg.BackButton.hide();
+            }
+            logSDK('BackButton.hide()');
+        }
+
+        function handleBackButton() {
+            triggerHaptic('light');
+            const confirmModalOpen = !document.getElementById('modal-confirm').classList.contains('hidden');
+            if (confirmModalOpen) {
+                closeConfirmModal();
+                return;
+            }
+            const studentModalOpen = !document.getElementById('modal-student').classList.contains('hidden');
+            const paymentModalOpen = !document.getElementById('modal-payment').classList.contains('hidden');
+            if (studentModalOpen || paymentModalOpen) {
+                closeModals();
+                return;
+            }
+            switchTab('dashboard');
+        }
+
+        /********************************************************************
+         * 2. МОДЕЛЬ ДАННЫХ И STORAGE MANAGER (LOCALSTORAGE + CLOUDSTORAGE)
+         ********************************************************************/
+        const STORAGE_KEY_STUDENTS = 'edupay_tma_students_v3_rub';
+        const STORAGE_KEY_EVENTS = 'edupay_tma_events_v3_rub';
+
+        const defaultStudents = [
+            {
+                id: 'st-1',
+                name: 'Анна Ковалева',
+                tg: '@anna_kovaleva',
+                payType: 'package',
+                lessonPrice: 2000,
+                packageSize: 8,
+                lessonsBalance: 5,
+                lessonsCompleted: 11,
+                note: 'Вт и Пт в 17:00',
+                avatarColor: 'from-emerald-500 to-teal-600'
+            },
+            {
+                id: 'st-2',
+                name: 'Дмитрий Соколов',
+                tg: '@dmitry_sokol',
+                payType: 'per_lesson',
+                lessonPrice: 2500,
+                packageSize: 1,
+                lessonsBalance: -1,
+                lessonsCompleted: 6,
+                note: 'Поурочная оплата после каждого занятия',
+                avatarColor: 'from-rose-500 to-orange-500'
+            },
+            {
+                id: 'st-3',
+                name: 'Мария Лебедева',
+                tg: '@masha_lebedeva',
+                payType: 'package',
+                lessonPrice: 1800,
+                packageSize: 8,
+                lessonsBalance: 0,
+                lessonsCompleted: 16,
+                note: 'Абонемент на 8 уроков закончился',
+                avatarColor: 'from-amber-500 to-orange-600'
+            },
+            {
+                id: 'st-4',
+                name: 'Артем Морозов',
+                tg: '@artem_moroz',
+                payType: 'per_lesson',
+                lessonPrice: 2200,
+                packageSize: 1,
+                lessonsBalance: -2,
+                lessonsCompleted: 9,
+                note: 'Обещал оплатить за 2 урока вечером',
+                avatarColor: 'from-rose-600 to-red-500'
+            },
+            {
+                id: 'st-5',
+                name: 'Екатерина Волкова',
+                tg: '@kate_volkova',
+                payType: 'package',
+                lessonPrice: 1900,
+                packageSize: 4,
+                lessonsBalance: 2,
+                lessonsCompleted: 6,
+                note: 'Пакет по 4 урока, Ср 19:00',
+                avatarColor: 'from-sky-500 to-blue-600'
+            },
+            {
+                id: 'st-6',
+                name: 'Илья Новиков',
+                tg: '@ilya_novikov',
+                payType: 'per_lesson',
+                lessonPrice: 2000,
+                packageSize: 1,
+                lessonsBalance: 1,
+                lessonsCompleted: 4,
+                note: 'Поурочно, обычно оплачивает перед уроком',
+                avatarColor: 'from-indigo-500 to-violet-600'
+            }
+        ];
+
+        const defaultEvents = [
+            {
+                id: 'ev-101',
+                type: 'lesson',
+                studentId: 'st-2',
+                studentName: 'Дмитрий Соколов',
+                lessonsDelta: -1,
+                amountRub: 2500,
+                date: '16.10.2026 10:15',
+                comment: 'Проведен 1 урок (поурочный тариф)'
+            },
+            {
+                id: 'ev-102',
+                type: 'payment',
+                studentId: 'st-1',
+                studentName: 'Анна Ковалева',
+                lessonsDelta: 8,
+                amountRub: 16000,
+                date: '14.10.2026 18:30',
+                comment: 'Оплата пакета (8 уроков)'
+            },
+            {
+                id: 'ev-103',
+                type: 'lesson',
+                studentId: 'st-3',
+                studentName: 'Мария Лебедева',
+                lessonsDelta: -1,
+                amountRub: 1800,
+                date: '14.10.2026 16:00',
+                comment: 'Проведен заключительный урок пакета'
+            },
+            {
+                id: 'ev-104',
+                type: 'payment',
+                studentId: 'st-5',
+                studentName: 'Екатерина Волкова',
+                lessonsDelta: 4,
+                amountRub: 7600,
+                date: '12.10.2026 12:10',
+                comment: 'Оплата пакета (4 урока)'
+            },
+            {
+                id: 'ev-105',
+                type: 'payment',
+                studentId: 'st-6',
+                studentName: 'Илья Новиков',
+                lessonsDelta: 1,
+                amountRub: 2000,
+                date: '11.10.2026 15:00',
+                comment: 'Оплата за 1 урок'
+            }
+        ];
+
+        let students = [];
+        let eventsLog = [];
+        let activeStatusFilter = 'all';
+        let activeTxTypeFilter = 'all';
+        let sortMode = 'priority';
+        let currentDetailStudentId = null;
+
+        const CLOUD_CHUNK_SIZE = 3800;
+        const CLOUD_META_KEY = 'edupay_cloud_meta_v3';
+        const MAX_EVENTS_HISTORY = 150;
+        let lastKnownCloudMeta = { stChunks: 0, evChunks: 0 };
+
+        function isTelegramCloudAvailable() {
+            if (!isRealTelegram || !tg || !tg.CloudStorage) return false;
+            if (typeof tg.isVersionAtLeast === 'function') {
+                return tg.isVersionAtLeast('6.9');
+            }
+            return true;
+        }
+
+        function splitIntoChunks(str, size = CLOUD_CHUNK_SIZE) {
+            const chunks = [];
+            for (let i = 0; i < str.length; i += size) {
+                chunks.push(str.slice(i, i + size));
+            }
+            return chunks.length ? chunks : ['[]'];
+        }
+
+        function updateStorageMetricsUI(statusText = 'Сохранено') {
+            const studentsJson = JSON.stringify(students);
+            const eventsJson = JSON.stringify(eventsLog);
+            const totalBytes = new Blob([studentsJson + eventsJson]).size;
+            const kb = (totalBytes / 1024).toFixed(1);
+
+            const stChunks = splitIntoChunks(studentsJson).length;
+            const evChunks = splitIntoChunks(eventsJson).length;
+            const totalKeys = stChunks + evChunks + 1;
+
+            const modeEl = document.getElementById('storage-mode-label');
+            const sizeEl = document.getElementById('storage-size-label');
+            const chunksEl = document.getElementById('storage-chunks-label');
+            const badgeEl = document.getElementById('storage-status-badge');
+
+            if (modeEl) modeEl.textContent = isTelegramCloudAvailable() ? 'TG Cloud Active' : 'Local + Cloud Sim';
+            if (sizeEl) sizeEl.textContent = `${kb} КБ`;
+            if (chunksEl) chunksEl.textContent = `${totalKeys} / 1024`;
+            if (badgeEl) badgeEl.textContent = statusText;
+        }
+
+        function syncDataToTelegramCloud(showNotification = false) {
+            const studentsStr = JSON.stringify(students);
+            const eventsStr = JSON.stringify(eventsLog.slice(0, MAX_EVENTS_HISTORY));
+
+            const stChunks = splitIntoChunks(studentsStr);
+            const evChunks = splitIntoChunks(eventsStr);
+
+            const meta = {
+                updatedAt: Date.now(),
+                stChunks: stChunks.length,
+                evChunks: evChunks.length
+            };
+
+            if (isTelegramCloudAvailable()) {
+                const staleKeys = [];
+                for (let i = stChunks.length; i < (lastKnownCloudMeta.stChunks || 0); i++) {
+                    staleKeys.push(`edupay_st_${i}`);
+                }
+                for (let i = evChunks.length; i < (lastKnownCloudMeta.evChunks || 0); i++) {
+                    staleKeys.push(`edupay_ev_${i}`);
+                }
+                if (staleKeys.length > 0 && typeof tg.CloudStorage.removeItems === 'function') {
+                    tg.CloudStorage.removeItems(staleKeys, () => {});
+                }
+                lastKnownCloudMeta = { stChunks: stChunks.length, evChunks: evChunks.length };
+
+                stChunks.forEach((chunk, idx) => {
+                    tg.CloudStorage.setItem(`edupay_st_${idx}`, chunk, (err) => {
+                        if (err) logSDK(`Ошибка CloudStorage (st_${idx}): ${err}`);
+                    });
+                });
+
+                evChunks.forEach((chunk, idx) => {
+                    tg.CloudStorage.setItem(`edupay_ev_${idx}`, chunk, (err) => {
+                        if (err) logSDK(`Ошибка CloudStorage (ev_${idx}): ${err}`);
+                    });
+                });
+
+                tg.CloudStorage.setItem(CLOUD_META_KEY, JSON.stringify(meta), (err) => {
+                    if (!err) {
+                        logSDK(`CloudStorage.setItem: синхронизировано (${stChunks.length + evChunks.length} ключ.)`);
+                        updateStorageMetricsUI('☁️ Синхронизировано');
+                        if (showNotification) showToast('Данные выгружены в облако Telegram!');
+                    }
+                });
+            } else {
+                try {
+                    localStorage.setItem(CLOUD_META_KEY, JSON.stringify(meta));
+                } catch (e) {}
+                logSDK(`[Sim] CloudStorage.setItem("${CLOUD_META_KEY}", ключей: ${stChunks.length + evChunks.length})`);
+                updateStorageMetricsUI('💾 В LocalStorage');
+                if (showNotification) {
+                    showToast('Сохранено в LocalStorage (в Telegram будет синхронизировано с CloudStorage)');
+                }
+            }
+        }
+
+        function loadDataFromTelegramCloud(isManualTrigger = false) {
+            if (!isTelegramCloudAvailable()) {
+                if (isManualTrigger) {
+                    triggerHaptic('light');
+                    loadDataFromLocal();
+                    updateAllViews();
+                    showToast('Загружено из локального хранилища браузера (режим симулятора)');
+                    logSDK('[Sim] CloudStorage.getItems() -> чтение из localStorage');
+                }
+                return;
+            }
+
+            tg.CloudStorage.getItem(CLOUD_META_KEY, (err, metaVal) => {
+                if (err || !metaVal) {
+                    logSDK('CloudStorage пуст — пушим локальную базу в облако');
+                    syncDataToTelegramCloud(false);
+                    return;
+                }
+
+                try {
+                    const meta = JSON.parse(metaVal);
+                    lastKnownCloudMeta = { stChunks: meta.stChunks || 1, evChunks: meta.evChunks || 1 };
+                    const keysToFetch = [];
+                    for (let i = 0; i < (meta.stChunks || 1); i++) keysToFetch.push(`edupay_st_${i}`);
+                    for (let i = 0; i < (meta.evChunks || 1); i++) keysToFetch.push(`edupay_ev_${i}`);
+
+                    tg.CloudStorage.getItems(keysToFetch, (fetchErr, values) => {
+                        if (fetchErr || !values) return;
+
+                        let fullStStr = '';
+                        for (let i = 0; i < (meta.stChunks || 1); i++) {
+                            fullStStr += (values[`edupay_st_${i}`] || '');
+                        }
+
+                        let fullEvStr = '';
+                        for (let i = 0; i < (meta.evChunks || 1); i++) {
+                            fullEvStr += (values[`edupay_ev_${i}`] || '');
+                        }
+
+                        if (fullStStr) {
+                            students = JSON.parse(fullStStr);
+                            localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
+                        }
+                        if (fullEvStr) {
+                            eventsLog = JSON.parse(fullEvStr);
+                            localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(eventsLog));
+                        }
+
+                        updateAllViews();
+                        updateStorageMetricsUI('☁️ Из TG Cloud');
+                        logSDK(`CloudStorage.getItems: загружено студентов (${students.length}), событий (${eventsLog.length})`);
+                        if (isManualTrigger) {
+                            triggerHaptic('success');
+                            showToast('База успешно загружена из облака Telegram!');
+                        }
+                    });
+                } catch (parseErr) {
+                    logSDK('Ошибка чтения структуры CloudStorage');
+                }
+            });
+        }
+
+        function loadDataFromLocal() {
+            try {
+                const savedSt = localStorage.getItem(STORAGE_KEY_STUDENTS);
+                const savedEv = localStorage.getItem(STORAGE_KEY_EVENTS);
+                students = savedSt ? JSON.parse(savedSt) : JSON.parse(JSON.stringify(defaultStudents));
+                eventsLog = savedEv ? JSON.parse(savedEv) : JSON.parse(JSON.stringify(defaultEvents));
+            } catch (e) {
+                students = JSON.parse(JSON.stringify(defaultStudents));
+                eventsLog = JSON.parse(JSON.stringify(defaultEvents));
+            }
+        }
+
+        function loadData() {
+            loadDataFromLocal();
+            updateStorageMetricsUI();
+            if (isTelegramCloudAvailable()) {
+                loadDataFromTelegramCloud(false);
+            }
+        }
+
+        function saveData() {
+            if (eventsLog.length > MAX_EVENTS_HISTORY) {
+                eventsLog = eventsLog.slice(0, MAX_EVENTS_HISTORY);
+            }
+            try {
+                localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
+                localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(eventsLog));
+            } catch (e) {}
+            syncDataToTelegramCloud(false);
+            updateAllViews();
+        }
+
+        function forceSyncToCloud() {
+            triggerHaptic('medium');
+            syncDataToTelegramCloud(true);
+        }
+
+        function forceLoadFromCloud() {
+            loadDataFromTelegramCloud(true);
+        }
+
+        function exportFullJsonBackup() {
+            triggerHaptic('light');
+            const backupPayload = {
+                app: 'EduPay_TMA_RUB',
+                version: 2,
+                exportedAt: new Date().toISOString(),
+                students,
+                eventsLog
+            };
+            const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: 'application/json;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `edupay_backup_${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Резервная копия (.json) сохранена на устройство');
+            logSDK('Экспорт полной резервной копии .JSON выполнен');
+        }
+
+        function importFullJsonBackup(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (Array.isArray(parsed.students)) {
+                        students = parsed.students;
+                        eventsLog = Array.isArray(parsed.eventsLog) ? parsed.eventsLog : [];
+                        saveData();
+                        triggerHaptic('success');
+                        showToast(`Импортировано студентов: ${students.length}`);
+                        logSDK(`Импорт .JSON: загружено ${students.length} студентов`);
+                    } else {
+                        triggerHaptic('error');
+                        showToast('Некорректный формат файла бэкапа', 'warning');
+                    }
+                } catch (err) {
+                    triggerHaptic('error');
+                    showToast('Ошибка чтения JSON-файла', 'warning');
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function resetDemoData() {
+            askConfirmation(
+                'Сбросить данные к демо-базе?',
+                'Все добавленные студенты и история уроков будут заменены демонстрационными данными.',
+                () => {
+                    triggerHaptic('warning');
+                    students = JSON.parse(JSON.stringify(defaultStudents));
+                    eventsLog = JSON.parse(JSON.stringify(defaultEvents));
+                    saveData();
+                    showToast('Демо-данные успешно восстановлены', 'info');
+                }
+            );
+        }
+
+        /********************************************************************
+         * 3. РАСЧЕТЫ И ФОРМАТИРОВАНИЕ (В РУБЛЯХ ₽)
+         ********************************************************************/
+        function formatRub(amount) {
+            return new Intl.NumberFormat('ru-RU').format(Math.round(Number(amount) || 0)) + ' ₽';
+        }
+
+        function getInitials(name) {
+            return (name || 'СТ')
+                .split(' ')
+                .filter(Boolean)
+                .map(part => part[0])
+                .join('')
+                .toUpperCase()
+                .slice(0, 2);
+        }
+
+        function formatNowDateTime() {
+            const d = new Date();
+            const datePart = d.toLocaleDateString('ru-RU');
+            const timePart = d.toTimeString().slice(0, 5);
+            return `${datePart} ${timePart}`;
+        }
+
+        function getStudentBalanceState(student) {
+            const bal = Number(student.lessonsBalance) || 0;
+            if (bal < 0) return 'debt';
+            if (bal === 0) return 'zero';
+            return 'positive';
+        }
+
+        function getStudentExpectedPaymentRub(student) {
+            const bal = Number(student.lessonsBalance) || 0;
+            const price = Number(student.lessonPrice) || 0;
+            const pkg = Number(student.packageSize) || 1;
+
+            if (bal < 0) {
+                return Math.abs(bal) * price;
+            }
+            if (bal === 0) {
+                return student.payType === 'package' ? pkg * price : price;
+            }
+            return 0;
+        }
+
+        function pluralizeLessons(n) {
+            const abs = Math.abs(n) % 100;
+            const n1 = abs % 10;
+            if (abs > 10 && abs < 20) return 'уроков';
+            if (n1 > 1 && n1 < 5) return 'урока';
+            if (n1 === 1) return 'урок';
+            return 'уроков';
+        }
+
+        function showToast(message, type = 'success', undoEventId = null) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            const toast = document.createElement('div');
+            const bgClass = type === 'success' 
+                ? 'bg-slate-900/95 dark:bg-slate-800/95 text-white border-emerald-500/40' 
+                : type === 'warning' 
+                ? 'bg-amber-500 text-slate-950 border-amber-400' 
+                : 'bg-slate-900/95 text-white border-sky-500/40';
+
+            toast.className = `${bgClass} pointer-events-auto w-full px-4 py-3 rounded-2xl shadow-xl border text-xs font-medium flex items-center justify-between gap-3 animate-fade-in backdrop-blur-md`;
+
+            const textSpan = document.createElement('span');
+            textSpan.className = 'truncate';
+            textSpan.textContent = message;
+            toast.appendChild(textSpan);
+
+            if (undoEventId) {
+                const undoBtn = document.createElement('button');
+                undoBtn.className = 'px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs shrink-0 active:scale-95 transition';
+                undoBtn.textContent = 'Отменить';
+                undoBtn.onclick = () => {
+                    undoEventById(undoEventId);
+                    toast.remove();
+                };
+                toast.appendChild(undoBtn);
+            }
+
+            container.appendChild(toast);
+
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.style.opacity = '0';
+                    toast.style.transition = 'opacity 0.25s ease';
+                    setTimeout(() => toast.remove(), 250);
+                }
+            }, undoEventId ? 4500 : 2600);
+        }
+
+        /********************************************************************
+         * 4. СПИСАНИЕ УРОКА В 1 КЛИК И ОТМЕНА (UNDO)
+         ********************************************************************/
+        function conductLessonOneClick(studentId, domEvent = null) {
+            if (domEvent) domEvent.stopPropagation();
+
+            const st = students.find(s => s.id === studentId);
+            if (!st) return;
+
+            triggerHaptic('medium');
+
+            st.lessonsBalance = (Number(st.lessonsBalance) || 0) - 1;
+            st.lessonsCompleted = (Number(st.lessonsCompleted) || 0) + 1;
+
+            const newEvent = {
+                id: 'ev-' + Date.now(),
+                type: 'lesson',
+                studentId: st.id,
+                studentName: st.name,
+                lessonsDelta: -1,
+                amountRub: Number(st.lessonPrice) || 0,
+                date: formatNowDateTime(),
+                comment: `Проведен 1 урок (${formatRub(st.lessonPrice)})`
+            };
+
+            eventsLog.unshift(newEvent);
+            saveData();
+
+            if (currentDetailStudentId === studentId && !document.getElementById('view-student-detail').classList.contains('hidden')) {
+                openStudentDetail(studentId, false);
+            }
+
+            const balText = st.lessonsBalance < 0 
+                ? `долг ${Math.abs(st.lessonsBalance)} ур.` 
+                : `остаток ${st.lessonsBalance} ур.`;
+
+            showToast(`✓ Списан 1 урок у ${st.name} (${balText})`, 'success', newEvent.id);
+            logSDK(`Списан 1 урок у ${st.name}: баланс = ${st.lessonsBalance}`);
+        }
+
+        function undoEventById(eventId) {
+            const idx = eventsLog.findIndex(e => e.id === eventId);
+            if (idx === -1) return;
+
+            const ev = eventsLog[idx];
+            const st = students.find(s => s.id === ev.studentId);
+
+            triggerHaptic('warning');
+
+            if (st) {
+                st.lessonsBalance = (Number(st.lessonsBalance) || 0) - Number(ev.lessonsDelta);
+                if (ev.type === 'lesson' && st.lessonsCompleted > 0) {
+                    st.lessonsCompleted -= 1;
+                }
+            }
+
+            eventsLog.splice(idx, 1);
+            saveData();
+
+            if (currentDetailStudentId && !document.getElementById('view-student-detail').classList.contains('hidden')) {
+                openStudentDetail(currentDetailStudentId, false);
+            }
+
+            showToast(`Операция «${ev.comment}» (${ev.studentName}) отменена`, 'warning');
+            logSDK(`Undo события ${eventId} выполнено`);
+        }
+
+        /********************************************************************
+         * 5. ДАШБОРД И СПИСОК СТУДЕНТОВ
+         ********************************************************************/
+        function updateDashboardStats() {
+            let receivedRub = 0;
+            let earnedRub = 0;
+            let earnedLessonsCount = 0;
+
+            eventsLog.forEach(ev => {
+                if (ev.type === 'payment') {
+                    receivedRub += Number(ev.amountRub) || 0;
+                } else if (ev.type === 'lesson') {
+                    earnedRub += Number(ev.amountRub) || 0;
+                    earnedLessonsCount += Math.abs(Number(ev.lessonsDelta) || 1);
+                }
+            });
+
+            let posCount = 0, posLessons = 0, posRubValue = 0;
+            let zeroCount = 0, zeroExpectedRub = 0;
+            let debtCount = 0, debtLessons = 0, debtRub = 0;
+
+            students.forEach(s => {
+                const bal = Number(s.lessonsBalance) || 0;
+                const price = Number(s.lessonPrice) || 0;
+                const state = getStudentBalanceState(s);
+
+                if (state === 'positive') {
+                    posCount++;
+                    posLessons += bal;
+                    posRubValue += bal * price;
+                } else if (state === 'zero') {
+                    zeroCount++;
+                    zeroExpectedRub += getStudentExpectedPaymentRub(s);
+                } else if (state === 'debt') {
+                    debtCount++;
+                    debtLessons += Math.abs(bal);
+                    debtRub += Math.abs(bal) * price;
+                }
+            });
+
+            const totalToPayRub = debtRub + zeroExpectedRub;
+
+            document.getElementById('stat-received-rub').textContent = formatRub(receivedRub);
+            document.getElementById('stat-earned-badge').textContent = `Отработано: ${formatRub(earnedRub)} (${earnedLessonsCount} ур.)`;
+            document.getElementById('stat-to-pay-rub').textContent = debtRub > 0 
+                ? `${formatRub(debtRub)} долг` 
+                : formatRub(totalToPayRub);
+
+            document.getElementById('count-positive').textContent = posCount;
+            document.getElementById('stat-positive-rub').textContent = `${posLessons} ${pluralizeLessons(posLessons)}`;
+            document.getElementById('stat-positive-sub').textContent = `на ${formatRub(posRubValue)}`;
+
+            document.getElementById('count-zero').textContent = zeroCount;
+            document.getElementById('stat-zero-rub').textContent = formatRub(zeroExpectedRub);
+
+            document.getElementById('count-debt').textContent = debtCount;
+            document.getElementById('stat-debt-rub').textContent = formatRub(debtRub);
+            document.getElementById('stat-debt-sub').textContent = `${debtLessons} ур. без оплаты`;
+
+            const totalSt = Math.max(students.length, 1);
+            document.getElementById('bar-positive').style.width = `${Math.max((posCount / totalSt) * 100, 4)}%`;
+            document.getElementById('bar-zero').style.width = `${(zeroCount / totalSt) * 100}%`;
+            document.getElementById('bar-debt').style.width = `${(debtCount / totalSt) * 100}%`;
+        }
+
+        function setFilterStatus(status) {
+            triggerHaptic('selection');
+            activeStatusFilter = status;
+            document.querySelectorAll('.status-pill').forEach(btn => {
+                if (btn.dataset.statusBtn === status) {
+                    btn.className = 'status-pill px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-tg-btn text-tg-btnText shadow-xs';
+                } else {
+                    btn.className = 'status-pill px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition bg-tg-secBg text-tg-hint hover:text-tg-text flex items-center gap-1';
+                }
+            });
+            renderStudents();
+        }
+
+        function clearSearch() {
+            document.getElementById('search-input').value = '';
+            renderStudents();
+        }
+
+        function cycleSortOrder() {
+            triggerHaptic('light');
+            const modes = [
+                { key: 'priority', label: 'Сначала долг и 0 ур.' },
+                { key: 'price', label: 'По цене урока (₽)' },
+                { key: 'name', label: 'По алфавиту (А–Я)' }
+            ];
+            const idx = modes.findIndex(m => m.key === sortMode);
+            const next = modes[(idx + 1) % modes.length];
+            sortMode = next.key;
+            document.getElementById('sort-label').textContent = next.label;
+            renderStudents();
+        }
+
+        function getPayTypeBadgeHTML(student) {
+            if (student.payType === 'package') {
+                return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/20">
+                    📦 Пакет ${student.packageSize || 8} ур. • ${formatRub(student.lessonPrice)}/ур.
+                </span>`;
+            }
+            return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-violet-500/15 text-violet-400 border border-violet-500/20">
+                ⚡ После каждого урока • ${formatRub(student.lessonPrice)}/ур.
+            </span>`;
+        }
+
+        function getBalanceBadgeHTML(student) {
+            const bal = Number(student.lessonsBalance) || 0;
+            const price = Number(student.lessonPrice) || 0;
+
+            if (bal < 0) {
+                const debtRub = Math.abs(bal) * price;
+                return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
+                    Долг: ${Math.abs(bal)} ${pluralizeLessons(bal)} (${formatRub(debtRub)})
+                </span>`;
+            }
+            if (bal === 0) {
+                const label = student.payType === 'package'
+                    ? `Пора платить пакет (${formatRub(student.packageSize * price)})`
+                    : `Баланс: 0 ур. (к оплате ${formatRub(price)})`;
+                return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    ${label}
+                </span>`;
+            }
+            return `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                Баланс: ${bal} ${pluralizeLessons(bal)} (${formatRub(bal * price)})
+            </span>`;
+        }
+
+        function renderStudents() {
+            const query = (document.getElementById('search-input').value || '').trim().toLowerCase();
+            const payTypeFilter = document.getElementById('paytype-filter').value;
+            const clearBtn = document.getElementById('clear-search-btn');
+            clearBtn.classList.toggle('hidden', query.length === 0);
+
+            let filtered = students.filter(s => {
+                const state = getStudentBalanceState(s);
+                const matchesStatus = activeStatusFilter === 'all' || state === activeStatusFilter;
+                const matchesPayType = payTypeFilter === 'all' || s.payType === payTypeFilter;
+                const matchesQuery = !query || 
+                    s.name.toLowerCase().includes(query) || 
+                    (s.tg && s.tg.toLowerCase().includes(query)) ||
+                    (s.note && s.note.toLowerCase().includes(query));
+                return matchesStatus && matchesPayType && matchesQuery;
+            });
+
+            filtered.sort((a, b) => {
+                if (sortMode === 'priority') {
+                    return (Number(a.lessonsBalance) || 0) - (Number(b.lessonsBalance) || 0);
+                } else if (sortMode === 'price') {
+                    return (Number(b.lessonPrice) || 0) - (Number(a.lessonPrice) || 0);
+                } else {
+                    return a.name.localeCompare(b.name, 'ru');
+                }
+            });
+
+            document.getElementById('students-Result-count').textContent = `Студенты (${filtered.length})`;
+            const container = document.getElementById('students-list');
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-tg-cardBg rounded-2xl p-8 text-center border border-tg-border space-y-2">
+                        <div class="text-3xl">🔍</div>
+                        <p class="text-sm font-semibold text-tg-text">Студенты не найдены</p>
+                        <p class="text-xs text-tg-hint">Попробуйте изменить фильтр типа оплаты или статуса баланса</p>
+                        <button onclick="setFilterStatus('all'); document.getElementById('paytype-filter').value='all'; clearSearch();" class="mt-2 px-3 py-1.5 rounded-xl bg-tg-secBg text-tg-link text-xs font-semibold">
+                            Сбросить все фильтры
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map(student => {
+                const state = getStudentBalanceState(student);
+                const needsPayment = state === 'debt' || state === 'zero';
+                const safeName = escapeHTML(student.name);
+                const safeTg = escapeHTML(student.tg || 'без @username');
+                const safeNote = escapeHTML(student.note || '');
+
+                return `
+                    <div onclick="openStudentDetail('${student.id}')" class="bg-tg-cardBg rounded-2xl p-3.5 border ${state === 'debt' ? 'border-rose-500/40' : state === 'zero' ? 'border-amber-500/35' : 'border-tg-border'} hover:border-sky-500/40 transition cursor-pointer">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="w-11 h-11 rounded-2xl bg-gradient-to-br ${student.avatarColor || 'from-sky-500 to-indigo-600'} text-white font-bold text-sm flex items-center justify-center shrink-0 shadow-xs">
+                                    ${escapeHTML(getInitials(student.name))}
+                                </div>
+                                <div class="min-w-0">
+                                    <h3 class="text-sm font-bold text-tg-text truncate">${safeName}</h3>
+                                    <div class="flex items-center gap-1.5 text-xs text-tg-hint mt-0.5 truncate">
+                                        <span class="font-medium text-tg-link">${safeTg}</span>
+                                        ${safeNote ? `<span>•</span><span class="truncate">${safeNote}</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button 
+                                onclick="event.stopPropagation(); copyReminderForStudent('${student.id}')" 
+                                title="Скопировать напоминание об оплате для Telegram" 
+                                class="p-2 rounded-xl ${needsPayment ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' : 'bg-tg-secBg text-tg-hint border border-tg-border'} hover:opacity-80 active:scale-95 transition shrink-0"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="flex flex-wrap items-center justify-between gap-2 mt-3">
+                            ${getPayTypeBadgeHTML(student)}
+                            ${getBalanceBadgeHTML(student)}
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-tg-border">
+                            <button 
+                                onclick="conductLessonOneClick('${student.id}', event)" 
+                                class="py-2 px-3 rounded-xl bg-tg-secBg hover:bg-sky-500/15 text-tg-text hover:text-sky-400 font-semibold text-xs border border-tg-border flex items-center justify-center gap-1.5 active:scale-95 transition"
+                            >
+                                <svg class="w-4 h-4 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                                <span>Провести урок (-1)</span>
+                            </button>
+
+                            <button 
+                                onclick="event.stopPropagation(); openQuickPaymentModal('${student.id}')" 
+                                class="py-2 px-3 rounded-xl ${needsPayment ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-xs' : 'bg-tg-btn/15 text-tg-link border border-sky-500/20'} font-semibold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition"
+                            >
+                                <span>+ Оплата (${formatRub(student.payType === 'package' ? (student.packageSize || 8) * student.lessonPrice : Math.max(1, Math.abs(Math.min(0, student.lessonsBalance))) * student.lessonPrice)})</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /********************************************************************
+         * 6. НАПОМИНАНИЯ И ДЕТАЛЬНЫЙ ПРОФИЛЬ СТУДЕНТА
+         ********************************************************************/
+        function copyReminderForStudent(studentId) {
+            const st = students.find(s => s.id === studentId);
+            if (!st) return;
+            triggerHaptic('light');
+
+            const firstName = st.name.split(' ')[0];
+            const bal = Number(st.lessonsBalance) || 0;
+            const price = Number(st.lessonPrice) || 0;
+            let text = '';
+
+            if (st.payType === 'package') {
+                const pkg = Number(st.packageSize) || 8;
+                const pkgSum = pkg * price;
+                if (bal < 0) {
+                    const debtSum = Math.abs(bal) * price;
+                    text = `Привет, ${firstName}! 👋\nУ нас проведено ${Math.abs(bal)} ${pluralizeLessons(bal)} сверх абонемента (долг ${formatRub(debtSum)}).\nДля продления пакета на ${pkg} ${pluralizeLessons(pkg)} сумма к оплате: ${formatRub(pkgSum + debtSum)} (или ${formatRub(pkgSum)} за сам пакет).\nКак оплатишь — пришли, пожалуйста, подтверждение 🙏`;
+                } else {
+                    text = `Привет, ${firstName}! 👋\nНапоминаю об оплате нового пакета на ${pkg} ${pluralizeLessons(pkg)} (стоимость 1 урока — ${formatRub(price)}, итого ${formatRub(pkgSum)}) 🙏`;
+                }
+            } else {
+                const countToPay = bal < 0 ? Math.abs(bal) : 1;
+                const sumToPay = countToPay * price;
+                text = `Привет, ${firstName}! 👋\nНапоминаю об оплате за ${countToPay} ${pluralizeLessons(countToPay)}: ${formatRub(sumToPay)} (${formatRub(price)} / урок) 🙏`;
+            }
+
+            copyTextSafe(text);
+            showToast(`Текст напоминания для ${st.tg || st.name} скопирован!`);
+        }
+
+        function openStudentDetail(studentId, triggerVibro = true) {
+            const st = students.find(s => s.id === studentId);
+            if (!st) return;
+            currentDetailStudentId = studentId;
+            if (triggerVibro) triggerHaptic('light');
+
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-transactions').classList.add('hidden');
+            document.getElementById('view-reports').classList.add('hidden');
+            document.getElementById('view-student-detail').classList.remove('hidden');
+
+            showBackButton();
+
+            const recommendedRub = st.payType === 'package'
+                ? (Number(st.packageSize) || 8) * Number(st.lessonPrice)
+                : Math.max(1, Math.abs(Math.min(0, Number(st.lessonsBalance)))) * Number(st.lessonPrice);
+
+            showMainButton(`ВНЕСТИ ОПЛАТУ (${formatRub(recommendedRub)})`, () => {
+                openQuickPaymentModal(st.id);
+            });
+
+            const studentEvents = eventsLog.filter(e => e.studentId === st.id);
+            const safeName = escapeHTML(st.name);
+            const safeTg = escapeHTML(st.tg || 'Telegram не указан');
+            const safeNote = escapeHTML(st.note || '');
+
+            const detailContainer = document.getElementById('student-detail-content');
+            detailContainer.innerHTML = `
+                <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border space-y-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br ${st.avatarColor || 'from-sky-500 to-indigo-600'} text-white font-bold text-lg flex items-center justify-center shadow-sm">
+                                ${escapeHTML(getInitials(st.name))}
+                            </div>
+                            <div>
+                                <h2 class="text-lg font-bold text-tg-text">${safeName}</h2>
+                                <p class="text-xs text-tg-link font-medium">${safeTg}</p>
+                                <div class="mt-1.5 flex flex-wrap gap-1.5">
+                                    ${getPayTypeBadgeHTML(st)}
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="openStudentModal('${st.id}')" class="p-2 rounded-xl bg-tg-secBg text-tg-hint hover:text-tg-text border border-tg-border" title="Редактировать профиль и тариф">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="p-3.5 rounded-2xl bg-tg-secBg border border-tg-border space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="text-[11px] text-tg-hint uppercase font-semibold">Текущий баланс</span>
+                                <div class="mt-1">${getBalanceBadgeHTML(st)}</div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[11px] text-tg-hint block">Проведено всего</span>
+                                <span class="text-sm font-bold text-tg-text">${st.lessonsCompleted || 0} ур.</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-tg-border">
+                            <button onclick="conductLessonOneClick('${st.id}')" class="py-2.5 px-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 active:scale-95 transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                                </svg>
+                                <span>Провести урок (-1)</span>
+                            </button>
+                            <button onclick="openQuickPaymentModal('${st.id}')" class="py-2.5 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 active:scale-95 transition">
+                                <span>+ Внести оплату (₽)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-semibold text-tg-hint uppercase mb-2">Тип оплаты студента</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="switchStudentPayTypeDirect('${st.id}', 'package')" class="py-2 px-3 rounded-xl text-xs font-semibold border transition ${st.payType === 'package' ? 'bg-sky-500/20 text-sky-400 border-sky-500/40' : 'bg-tg-secBg text-tg-hint border-tg-border'}">
+                                📦 Пакет (${st.packageSize || 8} ур.)
+                            </button>
+                            <button onclick="switchStudentPayTypeDirect('${st.id}', 'per_lesson')" class="py-2 px-3 rounded-xl text-xs font-semibold border transition ${st.payType === 'per_lesson' ? 'bg-violet-500/20 text-violet-400 border-violet-500/40' : 'bg-tg-secBg text-tg-hint border-tg-border'}">
+                                ⚡ После каждого урока
+                            </button>
+                        </div>
+                    </div>
+
+                    ${safeNote ? `
+                        <div class="p-3 rounded-xl bg-tg-secBg/60 border border-tg-border text-xs text-tg-hint">
+                            📌 <strong class="text-tg-text">Заметка:</strong> ${safeNote}
+                        </div>
+                    ` : ''}
+
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <button onclick="copyReminderForStudent('${st.id}')" class="py-2.5 px-3 rounded-xl bg-tg-secBg text-tg-link text-xs font-semibold border border-tg-border active:scale-95 transition">
+                            💬 Скопировать напоминание
+                        </button>
+                        <button onclick="openStudentModal('${st.id}')" class="py-2.5 px-3 rounded-xl bg-tg-secBg text-tg-text text-xs font-semibold border border-tg-border active:scale-95 transition">
+                            ⚙️ Изменить цену (${formatRub(st.lessonPrice)})
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-tg-text">История уроков и оплат (${studentEvents.length})</h3>
+                        <button onclick="deleteStudent('${st.id}')" class="text-xs text-rose-400 hover:underline">Удалить студента</button>
+                    </div>
+                    ${studentEvents.length === 0 ? `
+                        <p class="text-xs text-tg-hint py-4 text-center">Записей пока нет</p>
+                    ` : `
+                        <div class="space-y-2">
+                            ${studentEvents.map(ev => `
+                                <div class="flex items-center justify-between p-2.5 rounded-xl bg-tg-secBg border border-tg-border gap-2">
+                                    <div class="min-w-0">
+                                        <div class="text-xs font-semibold text-tg-text truncate">
+                                            ${ev.type === 'lesson' ? '🎓 ' : '💰 '}${escapeHTML(ev.comment)}
+                                        </div>
+                                        <div class="text-[11px] text-tg-hint">${escapeHTML(ev.date)} • ${ev.type === 'payment' ? 'Пополнение баланса' : 'Списание урока'}</div>
+                                    </div>
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <div class="text-right">
+                                            <div class="text-xs font-bold ${ev.type === 'payment' ? 'text-emerald-400' : 'text-sky-400'}">
+                                                ${ev.lessonsDelta > 0 ? `+${ev.lessonsDelta} ур.` : `${ev.lessonsDelta} ур.`}
+                                            </div>
+                                            <div class="text-[10px] text-tg-hint">${formatRub(ev.amountRub)}</div>
+                                        </div>
+                                        <button onclick="undoEventById('${ev.id}')" title="Отменить операцию" class="p-1.5 rounded-lg bg-tg-cardBg text-tg-hint hover:text-rose-400 border border-tg-border text-[10px]">
+                                            ✕
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `}
+                </div>
+            `;
+        }
+
+        function switchStudentPayTypeDirect(studentId, newPayType) {
+            const st = students.find(s => s.id === studentId);
+            if (!st) return;
+            triggerHaptic('selection');
+            st.payType = newPayType;
+            if (newPayType === 'package' && (!st.packageSize || st.packageSize < 2)) {
+                st.packageSize = 8;
+            }
+            saveData();
+            openStudentDetail(studentId, false);
+            showToast(`Формат оплаты изменен: ${newPayType === 'package' ? 'Пакет уроков' : 'После каждого урока'}`);
+        }
+
+        function deleteStudent(studentId) {
+            const st = students.find(s => s.id === studentId);
+            if (!st) return;
+            askConfirmation(
+                `Удалить профиль «${st.name}»?`,
+                'Студент и его карточка будут удалены из списка. Вы всегда можете сделать резервную копию перед удалением.',
+                () => {
+                    triggerHaptic('warning');
+                    students = students.filter(s => s.id !== studentId);
+                    saveData();
+                    switchTab('dashboard');
+                    showToast('Профиль студента удален', 'warning');
+                }
+            );
+        }
+
+        /********************************************************************
+         * 7. МОДАЛЬНЫЕ ОКНА: СТУДЕНТ И ВНЕСЕНИЕ ОПЛАТЫ
+         ********************************************************************/
+        function selectFormPayType(type) {
+            triggerHaptic('selection');
+            document.getElementById('student-paytype').value = type;
+
+            const btnPkg = document.getElementById('btn-paytype-package');
+            const btnPer = document.getElementById('btn-paytype-per-lesson');
+            const dotPkg = document.getElementById('check-paytype-package');
+            const dotPer = document.getElementById('check-paytype-per-lesson');
+            const pkgWrap = document.getElementById('package-size-wrapper');
+            const perWrap = document.getElementById('per-lesson-hint-wrapper');
+
+            if (type === 'package') {
+                btnPkg.className = 'p-3 rounded-xl border border-sky-500 bg-sky-500/10 text-left transition flex flex-col justify-between';
+                btnPer.className = 'p-3 rounded-xl border border-tg-border bg-tg-secBg text-left transition flex flex-col justify-between opacity-75';
+                dotPkg.className = 'w-2.5 h-2.5 rounded-full bg-sky-400';
+                dotPer.className = 'w-2.5 h-2.5 rounded-full bg-transparent border border-tg-hint';
+                pkgWrap.classList.remove('hidden');
+                perWrap.classList.add('hidden');
+                perWrap.classList.remove('flex');
+            } else {
+                btnPer.className = 'p-3 rounded-xl border border-violet-500 bg-violet-500/10 text-left transition flex flex-col justify-between';
+                btnPkg.className = 'p-3 rounded-xl border border-tg-border bg-tg-secBg text-left transition flex flex-col justify-between opacity-75';
+                dotPer.className = 'w-2.5 h-2.5 rounded-full bg-violet-400';
+                dotPkg.className = 'w-2.5 h-2.5 rounded-full bg-transparent border border-tg-hint';
+                pkgWrap.classList.add('hidden');
+                perWrap.classList.remove('hidden');
+                perWrap.classList.add('flex');
+            }
+
+            updateStudentModalPreview();
+        }
+
+        function setFormPackageSize(size) {
+            triggerHaptic('selection');
+            document.getElementById('student-package-size').value = size;
+            updateStudentModalPreview();
+        }
+
+        function updateStudentModalPreview() {
+            const type = document.getElementById('student-paytype').value;
+            const price = Number(document.getElementById('student-lesson-price').value) || 0;
+            const pkgSize = Number(document.getElementById('student-package-size').value) || 8;
+            const bal = Number(document.getElementById('student-balance').value) || 0;
+            const summaryEl = document.getElementById('student-form-summary');
+
+            if (type === 'package') {
+                summaryEl.innerHTML = `📦 <strong>Тариф «Пакет уроков»:</strong> ${pkgSize} ур. × ${formatRub(price)} = <strong>${formatRub(pkgSize * price)}</strong> за абонемент. Текущий баланс: <strong>${bal} ур.</strong>`;
+            } else {
+                summaryEl.innerHTML = `⚡ <strong>Тариф «После каждого урока»:</strong> <strong>${formatRub(price)}</strong> за 1 занятие. Текущий баланс: <strong>${bal} ур.</strong>`;
+            }
+        }
+
+        function openStudentModal(editId = null) {
+            triggerHaptic('light');
+            const modal = document.getElementById('modal-student');
+            const title = document.getElementById('modal-student-title');
+
+            if (editId) {
+                const st = students.find(s => s.id === editId);
+                if (!st) return;
+                title.textContent = 'Редактировать студента';
+                document.getElementById('student-id').value = st.id;
+                document.getElementById('student-name').value = st.name;
+                document.getElementById('student-tg').value = st.tg || '';
+                document.getElementById('student-lesson-price').value = st.lessonPrice;
+                document.getElementById('student-package-size').value = st.packageSize || 8;
+                document.getElementById('student-balance').value = st.lessonsBalance;
+                document.getElementById('student-note').value = st.note || '';
+                selectFormPayType(st.payType || 'package');
+            } else {
+                title.textContent = 'Новый студент';
+                document.getElementById('form-student').reset();
+                document.getElementById('student-id').value = '';
+                document.getElementById('student-lesson-price').value = 2000;
+                document.getElementById('student-package-size').value = 8;
+                document.getElementById('student-balance').value = 0;
+                selectFormPayType('package');
+            }
+
+            modal.classList.remove('hidden');
+            showBackButton();
+            showMainButton('СОХРАНИТЬ СТУДЕНТА', () => saveStudentFromForm());
+        }
+
+        function saveStudentFromForm() {
+            const id = document.getElementById('student-id').value;
+            const name = document.getElementById('student-name').value.trim();
+            let tgHandle = document.getElementById('student-tg').value.trim();
+            const payType = document.getElementById('student-paytype').value;
+            const lessonPrice = Number(document.getElementById('student-lesson-price').value) || 0;
+            const packageSize = payType === 'package' ? (Number(document.getElementById('student-package-size').value) || 8) : 1;
+            const lessonsBalance = parseInt(document.getElementById('student-balance').value, 10) || 0;
+            const note = document.getElementById('student-note').value.trim();
+
+            if (!name || lessonPrice <= 0) {
+                triggerHaptic('error');
+                showToast('Укажите имя студента и стоимость 1 урока в ₽', 'warning');
+                return;
+            }
+
+            if (tgHandle && !tgHandle.startsWith('@')) {
+                tgHandle = '@' + tgHandle;
+            }
+
+            const gradients = [
+                'from-sky-500 to-blue-600',
+                'from-emerald-500 to-teal-600',
+                'from-violet-500 to-purple-600',
+                'from-amber-500 to-orange-600',
+                'from-pink-500 to-rose-600'
+            ];
+
+            if (id) {
+                const idx = students.findIndex(s => s.id === id);
+                if (idx !== -1) {
+                    students[idx] = {
+                        ...students[idx],
+                        name,
+                        tg: tgHandle,
+                        payType,
+                        lessonPrice,
+                        packageSize,
+                        lessonsBalance,
+                        note
+                    };
+                }
+                showToast(`Профиль ${name} обновлен`);
+            } else {
+                const newSt = {
+                    id: 'st-' + Date.now(),
+                    name,
+                    tg: tgHandle,
+                    payType,
+                    lessonPrice,
+                    packageSize,
+                    lessonsBalance,
+                    lessonsCompleted: 0,
+                    note,
+                    avatarColor: gradients[students.length % gradients.length]
+                };
+                students.unshift(newSt);
+                showToast(`Студент ${name} добавлен`);
+            }
+
+            triggerHaptic('success');
+            closeModals();
+            saveData();
+        }
+
+        function openQuickPaymentModal(preselectedStudentId = null) {
+            triggerHaptic('light');
+            const selectEl = document.getElementById('pay-student-id');
+            selectEl.innerHTML = students.map(s => {
+                const typeIcon = s.payType === 'package' ? '📦' : '⚡';
+                return `<option value="${s.id}">${typeIcon} ${escapeHTML(s.name)} (баланс: ${s.lessonsBalance} ур. • ${formatRub(s.lessonPrice)}/ур.)</option>`;
+            }).join('');
+
+            if (preselectedStudentId) {
+                selectEl.value = preselectedStudentId;
+            } else {
+                const debtor = students.find(s => s.lessonsBalance <= 0);
+                if (debtor) selectEl.value = debtor.id;
+            }
+
+            syncPaymentModalWithStudent();
+            document.getElementById('modal-payment').classList.remove('hidden');
+
+            showBackButton();
+            showMainButton('ПРОВЕСТИ ОПЛАТУ (₽)', () => submitPaymentFromModal());
+        }
+
+        function syncPaymentModalWithStudent() {
+            const stId = document.getElementById('pay-student-id').value;
+            const st = students.find(s => s.id === stId);
+            if (!st) return;
+
+            const infoEl = document.getElementById('pay-student-info');
+            const presetsEl = document.getElementById('pay-presets');
+
+            const defaultLessons = st.payType === 'package'
+                ? (Number(st.packageSize) || 8)
+                : Math.max(1, Math.abs(Math.min(0, Number(st.lessonsBalance))));
+
+            infoEl.innerHTML = `
+                <div>
+                    <div class="font-bold text-tg-text">${st.payType === 'package' ? `📦 Пакет (${st.packageSize} ур.)` : '⚡ Оплата после каждого урока'}</div>
+                    <div class="text-[11px] text-tg-hint">Цена урока: <strong class="text-tg-text">${formatRub(st.lessonPrice)}</strong></div>
+                </div>
+                <div class="text-right">
+                    <span class="text-[11px] text-tg-hint block">Текущий баланс</span>
+                    <span class="font-bold ${st.lessonsBalance < 0 ? 'text-rose-400' : st.lessonsBalance === 0 ? 'text-amber-400' : 'text-emerald-400'}">${st.lessonsBalance} ур.</span>
+                </div>
+            `;
+
+            const presetOptions = st.payType === 'package'
+                ? [1, 4, st.packageSize || 8, 10]
+                : [1, 2, 4, 8];
+            const uniquePresets = [...new Set(presetOptions)];
+
+            presetsEl.innerHTML = uniquePresets.map(cnt => `
+                <button type="button" onclick="setPaymentLessonsCount(${cnt})" class="px-2 py-0.5 rounded-lg bg-tg-secBg text-[11px] font-semibold text-tg-link border border-tg-border hover:border-sky-500">
+                    +${cnt} ур.
+                </button>
+            `).join('');
+
+            setPaymentLessonsCount(defaultLessons);
+        }
+
+        function setPaymentLessonsCount(count) {
+            const stId = document.getElementById('pay-student-id').value;
+            const st = students.find(s => s.id === stId);
+            const lessonsInput = document.getElementById('pay-lessons-count');
+            const amountInput = document.getElementById('pay-amount');
+            const commentInput = document.getElementById('pay-comment');
+
+            lessonsInput.value = count;
+            if (st) {
+                const sum = count * (Number(st.lessonPrice) || 0);
+                amountInput.value = sum;
+                commentInput.value = st.payType === 'package' && count > 1
+                    ? `Оплата пакета (${count} ${pluralizeLessons(count)})`
+                    : `Оплата за ${count} ${pluralizeLessons(count)}`;
+                if (tg && tg.MainButton) {
+                    tg.MainButton.setText(`ПРОВЕСТИ ОПЛАТУ (${formatRub(sum)})`);
+                }
+                const simMainBtn = document.getElementById('sim-main-button-text');
+                if (simMainBtn) simMainBtn.textContent = `ПРОВЕСТИ ОПЛАТУ (${formatRub(sum)})`;
+            }
+        }
+
+        function handlePayLessonsInput() {
+            const count = Math.max(1, parseInt(document.getElementById('pay-lessons-count').value, 10) || 1);
+            setPaymentLessonsCount(count);
+        }
+
+        function submitPaymentFromModal() {
+            const stId = document.getElementById('pay-student-id').value;
+            const lessonsCount = parseInt(document.getElementById('pay-lessons-count').value, 10) || 1;
+            const amountRub = Number(document.getElementById('pay-amount').value) || 0;
+            const comment = document.getElementById('pay-comment').value.trim() || `Оплата за ${lessonsCount} ${pluralizeLessons(lessonsCount)}`;
+
+            const st = students.find(s => s.id === stId);
+            if (!st || amountRub <= 0 || lessonsCount <= 0) {
+                triggerHaptic('error');
+                showToast('Проверьте количество уроков и сумму в ₽', 'warning');
+                return;
+            }
+
+            st.lessonsBalance = (Number(st.lessonsBalance) || 0) + lessonsCount;
+
+            const newEv = {
+                id: 'ev-' + Date.now(),
+                type: 'payment',
+                studentId: st.id,
+                studentName: st.name,
+                lessonsDelta: lessonsCount,
+                amountRub,
+                date: formatNowDateTime(),
+                comment
+            };
+
+            eventsLog.unshift(newEv);
+
+            triggerHaptic('success');
+            closeModals();
+            saveData();
+            showToast(`+${formatRub(amountRub)} (+${lessonsCount} ур.) для ${st.name}`, 'success', newEv.id);
+        }
+
+        function closeModals() {
+            document.getElementById('modal-student').classList.add('hidden');
+            document.getElementById('modal-payment').classList.add('hidden');
+            hideMainButton();
+            if (document.getElementById('view-student-detail').classList.contains('hidden')) {
+                hideBackButton();
+            } else if (currentDetailStudentId) {
+                openStudentDetail(currentDetailStudentId, false);
+            }
+        }
+
+        /********************************************************************
+         * 8. ЖУРНАЛ СОБЫТИЙ И ОТЧЕТЫ (СТРОГО БЕЗ КАТЕГОРИЙ ОПЛАТЫ)
+         ********************************************************************/
+        function setTxTypeFilter(filterVal) {
+            triggerHaptic('selection');
+            activeTxTypeFilter = filterVal;
+            document.querySelectorAll('.tx-pill').forEach(btn => {
+                if (btn.dataset.txBtn === filterVal) {
+                    btn.className = 'tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-btn text-tg-btnText whitespace-nowrap transition';
+                } else {
+                    btn.className = 'tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-secBg text-tg-hint hover:text-tg-text whitespace-nowrap transition';
+                }
+            });
+            renderTransactions();
+        }
+
+        function renderTransactions() {
+            const container = document.getElementById('transactions-list');
+            const filtered = eventsLog.filter(ev => {
+                if (activeTxTypeFilter === 'all') return true;
+                return ev.type === activeTxTypeFilter;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-tg-cardBg rounded-2xl p-6 text-center border border-tg-border">
+                        <p class="text-xs text-tg-hint">События по выбранному фильтру отсутствуют</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map(ev => {
+                const isPayment = ev.type === 'payment';
+                const typeBadge = isPayment ? 'Пополнение баланса (₽)' : 'Списание урока (-1 ур.)';
+                return `
+                    <div class="bg-tg-cardBg rounded-2xl p-3.5 border border-tg-border flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-10 h-10 rounded-xl ${isPayment ? 'bg-emerald-500/15 text-emerald-400' : 'bg-sky-500/15 text-sky-400'} flex items-center justify-center shrink-0 font-bold text-sm">
+                                ${isPayment ? '₽' : '🎓'}
+                            </div>
+                            <div class="min-w-0">
+                                <h4 class="text-xs font-bold text-tg-text truncate">${escapeHTML(ev.studentName)}</h4>
+                                <p class="text-[11px] text-tg-hint truncate">${escapeHTML(ev.comment)}</p>
+                                <p class="text-[10px] text-tg-hint mt-0.5">${escapeHTML(ev.date)} • <span class="text-tg-link font-medium">${typeBadge}</span></p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <div class="text-right">
+                                <div class="text-sm font-bold ${isPayment ? 'text-emerald-400' : 'text-sky-400'}">
+                                    ${isPayment ? `+${formatRub(ev.amountRub)}` : `${ev.lessonsDelta} ур.`}
+                                </div>
+                                <div class="text-[10px] text-tg-hint">
+                                    ${isPayment ? `+${ev.lessonsDelta} ур. к балансу` : `отработано ${formatRub(ev.amountRub)}`}
+                                </div>
+                            </div>
+                            <button onclick="undoEventById('${ev.id}')" title="Отменить запись" class="p-1.5 rounded-xl bg-tg-secBg text-tg-hint hover:text-rose-400 border border-tg-border text-xs active:scale-95 transition">
+                                ✕
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function generateReportText() {
+            const receivedRub = eventsLog.filter(e => e.type === 'payment').reduce((a, b) => a + (Number(b.amountRub) || 0), 0);
+            const earnedRub = eventsLog.filter(e => e.type === 'lesson').reduce((a, b) => a + (Number(b.amountRub) || 0), 0);
+            const earnedCount = eventsLog.filter(e => e.type === 'lesson').length;
+
+            const debtors = students.filter(s => s.lessonsBalance < 0);
+            const zeroStudents = students.filter(s => s.lessonsBalance === 0);
+            const activeStudents = students.filter(s => s.lessonsBalance > 0);
+
+            const totalDebtRub = debtors.reduce((acc, s) => acc + Math.abs(s.lessonsBalance) * s.lessonPrice, 0);
+
+            const dateNow = new Date().toLocaleDateString('ru-RU');
+            let lines = [
+                `📊 СВОДКА ПО УРОКАМ И ОПЛАТАМ (${dateNow})`,
+                `━━━━━━━━━━━━━━━━━━━━`,
+                `💰 Получено оплат: ${formatRub(receivedRub)}`,
+                `🎓 Отработано уроков: ${earnedCount} ур. (на ${formatRub(earnedRub)})`,
+                `🔥 Долг за проведенные уроки: ${formatRub(totalDebtRub)} (${debtors.length} чел.)`,
+                `✅ С положительным балансом: ${activeStudents.length} чел.`,
+                ``
+            ];
+
+            if (debtors.length > 0) {
+                lines.push(`🚨 ДОЛГ ПО ПРОВЕДЕННЫМ УРОКАМ (${debtors.length}):`);
+                debtors.forEach((s, i) => {
+                    const debtRub = Math.abs(s.lessonsBalance) * s.lessonPrice;
+                    const typeName = s.payType === 'package' ? 'Пакет' : 'Поурочно';
+                    lines.push(`${i + 1}. ${s.name} (${s.tg || '—'}) [${typeName}] — долг ${Math.abs(s.lessonsBalance)} ур. (${formatRub(debtRub)})`);
+                });
+                lines.push(``);
+            }
+
+            if (zeroStudents.length > 0) {
+                lines.push(`⏳ БАЛАНС 0 УРОКОВ — ПОРА ПЛАТИТЬ (${zeroStudents.length}):`);
+                zeroStudents.forEach((s, i) => {
+                    const nextPay = getStudentExpectedPaymentRub(s);
+                    const typeName = s.payType === 'package' ? `Пакет ${s.packageSize} ур.` : 'Поурочно';
+                    lines.push(`${i + 1}. ${s.name} (${s.tg || '—'}) [${typeName}] — к оплате ${formatRub(nextPay)}`);
+                });
+            }
+
+            const text = lines.join('\n');
+            const previewEl = document.getElementById('report-preview');
+            if (previewEl) previewEl.textContent = text;
+            return text;
+        }
+
+        function copyTextSafe(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+            } catch (err) {}
+            document.body.removeChild(textarea);
+        }
+
+        function copyReportToClipboard() {
+            triggerHaptic('success');
+            const report = generateReportText();
+            copyTextSafe(report);
+            showToast('Отчет скопирован в буфер обмена!');
+            logSDK('Отчет скопирован в буфер обмена');
+        }
+
+        function exportCSV() {
+            triggerHaptic('light');
+            const headers = ['ID', 'Имя', 'Telegram', 'Тип оплаты', 'Цена урока (₽)', 'Размер пакета', 'Баланс уроков', 'Проведено уроков', 'Заметка'];
+            const rows = students.map(s => [
+                s.id,
+                `"${s.name}"`,
+                s.tg || '',
+                s.payType === 'package' ? 'Пакет уроков' : 'После каждого урока',
+                s.lessonPrice,
+                s.packageSize || 1,
+                s.lessonsBalance,
+                s.lessonsCompleted || 0,
+                `"${(s.note || '').replace(/"/g, '""')}"`
+            ]);
+
+            const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `edupay_balance_rub_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('CSV-таблица выгружена');
+            logSDK('Экспорт CSV таблицы выполнен');
+        }
+
+        function sendReportToBot() {
+            triggerHaptic('success');
+            const payload = {
+                action: 'sync_lessons_balance_rub',
+                currency: 'RUB',
+                timestamp: Date.now(),
+                totalStudents: students.length,
+                debtStudentsCount: students.filter(s => s.lessonsBalance < 0).length,
+                receivedRub: eventsLog.filter(e => e.type === 'payment').reduce((a, b) => a + Number(b.amountRub), 0)
+            };
+
+            const jsonStr = JSON.stringify(payload);
+            logSDK(`WebApp.sendData('${jsonStr}')`);
+
+            if (isRealTelegram && tg && tg.sendData) {
+                tg.sendData(jsonStr);
+            } else {
+                showToast('JSON-сводка в ₽ отправлена боту (см. консоль SDK)');
+            }
+        }
+
+        /********************************************************************
+         * 9. НАВИГАЦИЯ И ТЕМА
+         ********************************************************************/
+        function switchTab(tabName) {
+            triggerHaptic('selection');
+            currentDetailStudentId = null;
+            hideBackButton();
+            hideMainButton();
+
+            const views = ['dashboard', 'transactions', 'reports', 'student-detail'];
+            views.forEach(v => {
+                const el = document.getElementById(`view-${v}`);
+                if (el) el.classList.toggle('hidden', v !== tabName);
+            });
+
+            const navIds = ['dashboard', 'transactions', 'reports'];
+            navIds.forEach(n => {
+                const btn = document.getElementById(`nav-${n}`);
+                if (!btn) return;
+                if (n === tabName) {
+                    btn.className = 'nav-btn flex flex-col items-center justify-center py-1 rounded-xl text-tg-link transition';
+                } else {
+                    btn.className = 'nav-btn flex flex-col items-center justify-center py-1 rounded-xl text-tg-hint hover:text-tg-text transition';
+                }
+            });
+
+            if (tabName === 'reports') {
+                generateReportText();
+            }
+        }
+
+        function toggleTheme() {
+            triggerHaptic('light');
+            const html = document.documentElement;
+            html.classList.toggle('dark');
+            const isDark = html.classList.contains('dark');
+            applyTelegramNativeColors();
+            logSDK(`Тема переключена: ${isDark ? 'Dark' : 'Light'}`);
+        }
+
+        function updateAllViews() {
+            updateDashboardStats();
+            renderStudents();
+            renderTransactions();
+            generateReportText();
+            updateStorageMetricsUI();
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initTelegramSDK();
+            loadData();
+            setFilterStatus('all');
+            updateAllViews();
+        });
+    </script>
+</body>
+</html>
