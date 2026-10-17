@@ -289,9 +289,9 @@
 
                 <!-- Фильтр по типу события (строго без способов оплаты) -->
                 <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-                    <button onclick="setTxTypeFilter('all')" data-tx-btn="all" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-btn text-tg-btnText whitespace-nowrap transition">Все события</button>
-                    <button onclick="setTxTypeFilter('payment')" data-tx-btn="payment" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-secBg text-tg-hint hover:text-tg-text whitespace-nowrap transition">💰 Поступления оплат (₽)</button>
-                    <button onclick="setTxTypeFilter('lesson')" data-tx-btn="lesson" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-secBg text-tg-hint hover:text-tg-text whitespace-nowrap transition">🎓 Проведенные уроки</button>
+                    <button onclick="setTxTypeFilter('all')" data-tx-btn="all" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-btn text-tg-btnText whitespace-nowrap transition">Все</button>
+                    <button onclick="setTxTypeFilter('payment')" data-tx-btn="payment" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-secBg text-tg-hint hover:text-tg-text whitespace-nowrap transition">💰Оплаты</button>
+                    <button onclick="setTxTypeFilter('lesson')" data-tx-btn="lesson" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-secBg text-tg-hint hover:text-tg-text whitespace-nowrap transition">🎓Уроки</button>
                 </div>
             </div>
 
@@ -697,7 +697,7 @@
 
                 if (tg.initDataUnsafe.user) {
                     const u = tg.initDataUnsafe.user;
-                    document.getElementById('tg-user-greeting').textContent = `Преподаватель: ${u.first_name} ${u.last_name || ''}`.trim();
+                    document.getElementById('tg-user-greeting').textContent = `${u.first_name} ${u.last_name || ''}`.trim();
                 }
 
                 if (tg.BackButton) {
