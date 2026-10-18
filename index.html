@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>EduPay TMA — Учет уроков и оплат в ₽</title>
+    <title>EduPay TMA — Учет уроков, расписания и оплат в ₽</title>
     <!-- Подключение официального скрипта Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Tailwind CSS -->
@@ -100,7 +100,7 @@
             <!-- Центр: Название Mini App и статус автосохранения -->
             <div class="text-center flex-1 truncate">
                 <div class="flex items-center justify-center gap-1.5">
-                    <h1 class="text-sm font-bold tracking-tight text-tg-text truncate">EduPay • Баланс уроков (₽)</h1>
+                    <h1 class="text-sm font-bold tracking-tight text-tg-text truncate">EduPay • Уроки и Баланс (₽)</h1>
                     <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 font-semibold border border-sky-500/20">TMA</span>
                 </div>
                 <div class="flex items-center justify-center gap-1.5 mt-0.5">
@@ -274,6 +274,49 @@
             <div id="student-detail-content"></div>
         </section>
 
+        <!-- НОВАЯ ВКЛАДКА: РАСПИСАНИЕ (TIMELINE БЛИЖАЙШИХ УРОКОВ) -->
+        <section id="view-schedule" class="hidden space-y-3.5 animate-fade-in">
+            <!-- Шапка экрана расписания -->
+            <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border space-y-3 shadow-sm">
+                <div class="flex items-start justify-between gap-2">
+                    <div>
+                        <div class="flex items-center gap-1.5">
+                            <h2 class="text-base font-bold text-tg-text">Расписание уроков</h2>
+                            <span id="schedule-today-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/20">
+                                Сегодня: 0 ур.
+                            </span>
+                        </div>
+                        <p class="text-xs text-tg-hint mt-0.5">Единая лента запланированных занятий (Timeline)</p>
+                    </div>
+                    <button onclick="openScheduleModal()" class="py-2 px-3 rounded-xl bg-tg-btn text-tg-btnText font-bold text-xs shadow-xs flex items-center gap-1.5 hover:opacity-95 active:scale-95 transition shrink-0">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        <span>Запланировать</span>
+                    </button>
+                </div>
+
+                <!-- Мини-сводка по запланированным урокам -->
+                <div class="grid grid-cols-3 gap-2 pt-2 border-t border-tg-border text-center">
+                    <div class="p-2 rounded-xl bg-tg-secBg/70 border border-tg-border">
+                        <span class="text-[10px] text-tg-hint block">На сегодня</span>
+                        <span id="sched-stat-today" class="text-xs font-bold text-emerald-400">0 ур.</span>
+                    </div>
+                    <div class="p-2 rounded-xl bg-tg-secBg/70 border border-tg-border">
+                        <span class="text-[10px] text-tg-hint block">Всего в плане</span>
+                        <span id="sched-stat-total" class="text-xs font-bold text-tg-text">0 ур.</span>
+                    </div>
+                    <div class="p-2 rounded-xl bg-tg-secBg/70 border border-tg-border">
+                        <span class="text-[10px] text-tg-hint block">Ожидаемый доход</span>
+                        <span id="sched-stat-rub" class="text-xs font-bold text-sky-400">0 ₽</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Лента запланированных уроков по дням -->
+            <div id="schedule-timeline-list" class="space-y-4"></div>
+        </section>
+
         <!-- ВКЛАДКА 3: ЖУРНАЛ СОБЫТИЙ (ОПЛАТЫ И СПИСАНИЯ УРОКОВ) -->
         <section id="view-transactions" class="hidden space-y-3 animate-fade-in">
             <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border space-y-3">
@@ -287,8 +330,8 @@
                 <!-- Фильтр по типу события (строго без способов оплаты) -->
                 <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                     <button onclick="setTxTypeFilter('all')" data-tx-btn="all" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-btn text-tg-btnText whitespace-nowrap transition">Все</button>
-                    <button onclick="setTxTypeFilter('payment')" data-tx-btn="payment" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-secBg text-tg-hint hover:text-tg-text whitespace-nowrap transition">💰Оплаты</button>
-                    <button onclick="setTxTypeFilter('lesson')" data-tx-btn="lesson" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-secBg text-tg-hint hover:text-tg-text whitespace-nowrap transition">🎓Уроки</button>
+                    <button onclick="setTxTypeFilter('payment')" data-tx-btn="payment" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-secBg text-tg-hint hover:text-tg-text whitespace-nowrap transition">💰 Оплаты</button>
+                    <button onclick="setTxTypeFilter('lesson')" data-tx-btn="lesson" class="tx-pill px-3 py-1.5 rounded-xl text-xs font-semibold bg-tg-secBg text-tg-hint hover:text-tg-text whitespace-nowrap transition">🎓 Уроки</button>
                 </div>
             </div>
 
@@ -351,7 +394,7 @@
                     </div>
                     <div>
                         <span class="text-[10px] text-tg-hint block">Ключей в TG Cloud</span>
-                        <span id="storage-chunks-label" class="text-xs font-bold text-emerald-400">2 / 1024</span>
+                        <span id="storage-chunks-label" class="text-xs font-bold text-emerald-400">3 / 1024</span>
                     </div>
                 </div>
 
@@ -412,6 +455,84 @@
         </section>
 
     </main>
+
+    <!-- МОДАЛЬНОЕ ОКНО: ПЛАНИРОВАНИЕ / ПЕРЕНОС УРОКА (TIMELINE SCHEDULER) -->
+    <div id="modal-schedule" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div class="bg-tg-cardBg w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-tg-border p-4 sm:p-5 space-y-4 animate-slide-up max-h-[92vh] overflow-y-auto pb-8 sm:pb-6">
+            <div class="flex items-center justify-between border-b border-tg-border pb-3">
+                <div>
+                    <h3 id="modal-schedule-title" class="text-base font-bold text-tg-text">Запланировать урок</h3>
+                    <p id="modal-schedule-subtitle" class="text-[11px] text-tg-hint">Выберите дату и время занятия</p>
+                </div>
+                <button onclick="closeModals()" class="p-1.5 rounded-full bg-tg-secBg text-tg-hint hover:text-tg-text">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="form-schedule" onsubmit="event.preventDefault(); savePlannedLessonFromModal();" class="space-y-3.5">
+                <input type="hidden" id="sched-edit-id" value="">
+
+                <!-- Выбор студента -->
+                <div>
+                    <label class="block text-xs font-medium text-tg-hint mb-1">Студент *</label>
+                    <select id="sched-student-id" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm font-medium border border-tg-border focus:outline-none focus:border-sky-500"></select>
+                </div>
+
+                <!-- Быстрый выбор дня (Сегодня, Завтра, +2 дня, +1 нед.) -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-medium text-tg-hint">Быстрый выбор дня</label>
+                        <span id="sched-human-preview" class="text-[11px] font-semibold text-tg-link"></span>
+                    </div>
+                    <div id="sched-quick-days" class="grid grid-cols-4 gap-1.5"></div>
+                </div>
+
+                <!-- Поля точной даты и времени -->
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-xs font-medium text-tg-hint mb-1">Дата урока *</label>
+                        <input id="sched-date-input" type="date" required onchange="updateScheduleModalPreview()" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm font-bold border border-tg-border focus:outline-none focus:border-sky-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-tg-hint mb-1">Время (МСК / Лок.) *</label>
+                        <input id="sched-time-input" type="time" required onchange="updateScheduleModalPreview()" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm font-bold border border-tg-border focus:outline-none focus:border-sky-500">
+                    </div>
+                </div>
+
+                <!-- Быстрые пресеты времени (чтобы не крутить барабан на телефоне) -->
+                <div>
+                    <label class="block text-[11px] font-medium text-tg-hint mb-1.5">Популярное время</label>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button type="button" onclick="setScheduleQuickTime('10:00')" class="px-2.5 py-1 rounded-lg bg-tg-secBg text-xs font-semibold text-tg-text border border-tg-border hover:border-sky-500 active:scale-95 transition">10:00</button>
+                        <button type="button" onclick="setScheduleQuickTime('12:00')" class="px-2.5 py-1 rounded-lg bg-tg-secBg text-xs font-semibold text-tg-text border border-tg-border hover:border-sky-500 active:scale-95 transition">12:00</button>
+                        <button type="button" onclick="setScheduleQuickTime('15:00')" class="px-2.5 py-1 rounded-lg bg-tg-secBg text-xs font-semibold text-tg-text border border-tg-border hover:border-sky-500 active:scale-95 transition">15:00</button>
+                        <button type="button" onclick="setScheduleQuickTime('17:00')" class="px-2.5 py-1 rounded-lg bg-tg-secBg text-xs font-semibold text-tg-text border border-tg-border hover:border-sky-500 active:scale-95 transition">17:00</button>
+                        <button type="button" onclick="setScheduleQuickTime('18:00')" class="px-2.5 py-1 rounded-lg bg-tg-secBg text-xs font-semibold text-tg-text border border-tg-border hover:border-sky-500 active:scale-95 transition">18:00</button>
+                        <button type="button" onclick="setScheduleQuickTime('19:30')" class="px-2.5 py-1 rounded-lg bg-tg-secBg text-xs font-semibold text-tg-text border border-tg-border hover:border-sky-500 active:scale-95 transition">19:30</button>
+                        <button type="button" onclick="setScheduleQuickTime('20:00')" class="px-2.5 py-1 rounded-lg bg-tg-secBg text-xs font-semibold text-tg-text border border-tg-border hover:border-sky-500 active:scale-95 transition">20:00</button>
+                    </div>
+                </div>
+
+                <!-- Опция повтора на несколько недель вперед (для фиксированного графика) -->
+                <div id="sched-repeat-wrapper" class="p-3 rounded-xl bg-tg-secBg/70 border border-tg-border space-y-2">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-bold text-tg-text block">Повторить по неделям (фиксированный график)</span>
+                            <span class="text-[10px] text-tg-hint">Можно добавить сразу серию уроков в этот же день недели</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-1.5 pt-1">
+                        <button type="button" onclick="setScheduleRepeatCount(1)" data-repeat-btn="1" class="repeat-pill py-1.5 px-2 rounded-lg text-xs font-bold bg-tg-btn text-tg-btnText border border-sky-500/30">Только 1 ур.</button>
+                        <button type="button" onclick="setScheduleRepeatCount(2)" data-repeat-btn="2" class="repeat-pill py-1.5 px-2 rounded-lg text-xs font-semibold bg-tg-cardBg text-tg-hint border border-tg-border">2 нед. (2 ур.)</button>
+                        <button type="button" onclick="setScheduleRepeatCount(4)" data-repeat-btn="4" class="repeat-pill py-1.5 px-2 rounded-lg text-xs font-semibold bg-tg-cardBg text-tg-hint border border-tg-border">4 нед. (4 ур.)</button>
+                        <button type="button" onclick="setScheduleRepeatCount(8)" data-repeat-btn="8" class="repeat-pill py-1.5 px-2 rounded-lg text-xs font-semibold bg-tg-cardBg text-tg-hint border border-tg-border">8 нед. (8 ур.)</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
 
     <!-- МОДАЛЬНОЕ ОКНО: ДОБАВЛЕНИЕ / РЕДАКТИРОВАНИЕ СТУДЕНТА -->
     <div id="modal-student" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -498,8 +619,8 @@
                         <span class="text-[10px] text-tg-hint">Можно указать &lt; 0, если есть долг</span>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-tg-hint mb-1">Заметка / Расписание</label>
-                        <input id="student-note" type="text" placeholder="Вт и Чт в 18:00" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm border border-tg-border focus:outline-none focus:border-sky-500">
+                        <label class="block text-xs font-medium text-tg-hint mb-1">Заметка к профилю</label>
+                        <input id="student-note" type="text" placeholder="Подготовка к ЕГЭ / Разговорный" class="w-full px-3 py-2.5 rounded-xl bg-tg-secBg text-tg-text text-sm border border-tg-border focus:outline-none focus:border-sky-500">
                     </div>
                 </div>
 
@@ -593,28 +714,38 @@
         </div>
     </div>
 
-    <!-- НИЖНЯЯ НАВИГАЦИЯ TELEGRAM MINI APP -->
+    <!-- НИЖНЯЯ НАВИГАЦИЯ TELEGRAM MINI APP (4 ВКЛАДКИ: СТУДЕНТЫ | РАСПИСАНИЕ | ЖУРНАЛ | ОТЧЕТ) -->
     <nav class="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md bg-tg-headerBg/95 border-t border-tg-border">
-        <div class="max-w-xl mx-auto grid grid-cols-3 px-2 py-1.5">
+        <div class="max-w-xl mx-auto grid grid-cols-4 px-1.5 py-1.5">
             <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn flex flex-col items-center justify-center py-1 rounded-xl text-tg-link transition">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
-                <span class="text-[11px] font-semibold mt-0.5">Студенты</span>
+                <span class="text-[10px] sm:text-[11px] font-semibold mt-0.5">Студенты</span>
+            </button>
+
+            <button onclick="switchTab('schedule')" id="nav-schedule" class="nav-btn relative flex flex-col items-center justify-center py-1 rounded-xl text-tg-hint hover:text-tg-text transition">
+                <div class="relative">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <span id="nav-schedule-badge" class="hidden absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-sky-500 text-white text-[9px] font-bold flex items-center justify-center">0</span>
+                </div>
+                <span class="text-[10px] sm:text-[11px] font-semibold mt-0.5">Расписание</span>
             </button>
 
             <button onclick="switchTab('transactions')" id="nav-transactions" class="nav-btn flex flex-col items-center justify-center py-1 rounded-xl text-tg-hint hover:text-tg-text transition">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
                 </svg>
-                <span class="text-[11px] font-semibold mt-0.5">Журнал событий</span>
+                <span class="text-[10px] sm:text-[11px] font-semibold mt-0.5">Журнал</span>
             </button>
 
             <button onclick="switchTab('reports')" id="nav-reports" class="nav-btn flex flex-col items-center justify-center py-1 rounded-xl text-tg-hint hover:text-tg-text transition">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                 </svg>
-                <span class="text-[11px] font-semibold mt-0.5">Отчет и SDK</span>
+                <span class="text-[10px] sm:text-[11px] font-semibold mt-0.5">Отчет</span>
             </button>
         </div>
     </nav>
@@ -627,6 +758,7 @@
         let isRealTelegram = false;
         let mainButtonAction = null;
         let confirmActionCallback = null;
+        let activeTabName = 'dashboard';
 
         // Защита от XSS-инъекций при рендеринге пользовательского ввода
         function escapeHTML(str) {
@@ -655,8 +787,6 @@
                 try {
                     if (typeof tg.setHeaderColor === 'function') tg.setHeaderColor(headerColor);
                     if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor(bgColor);
-                    // Отключаем системное предупреждение "Changes that you made may not be saved",
-                    // так как все изменения мгновенно сохраняются автоматически
                     if (typeof tg.disableClosingConfirmation === 'function') tg.disableClosingConfirmation();
                 } catch (e) {}
             }
@@ -761,12 +891,10 @@
             const simText = document.getElementById('sim-main-button-text');
 
             if (isRealTelegram && tg && tg.MainButton) {
-                // В реальном Telegram скрываем HTML-дубликат и показываем только нижнюю нативную кнопку Telegram
                 if (simBar) simBar.classList.add('hidden');
                 tg.MainButton.setText(text);
                 tg.MainButton.show();
             } else {
-                // В обычном браузере вне Telegram показываем нижнюю панель-симулятор
                 if (simText) simText.textContent = text;
                 if (simBar) simBar.classList.remove('hidden');
             }
@@ -821,9 +949,10 @@
                 closeConfirmModal();
                 return;
             }
+            const scheduleModalOpen = !document.getElementById('modal-schedule').classList.contains('hidden');
             const studentModalOpen = !document.getElementById('modal-student').classList.contains('hidden');
             const paymentModalOpen = !document.getElementById('modal-payment').classList.contains('hidden');
-            if (studentModalOpen || paymentModalOpen) {
+            if (scheduleModalOpen || studentModalOpen || paymentModalOpen) {
                 closeModals();
                 return;
             }
@@ -831,10 +960,11 @@
         }
 
         /********************************************************************
-         * 2. МОДЕЛЬ ДАННЫХ И STORAGE MANAGER (LOCALSTORAGE + CLOUDSTORAGE)
+         * 2. МОДЕЛЬ ДАННЫХ И STORAGE MANAGER (STUDENTS + EVENTS + PLANNED_LESSONS)
          ********************************************************************/
         const STORAGE_KEY_STUDENTS = 'edupay_tma_students_v3_rub';
         const STORAGE_KEY_EVENTS = 'edupay_tma_events_v3_rub';
+        const STORAGE_KEY_PLANNED = 'edupay_tma_planned_v3_rub';
 
         const defaultStudents = [
             {
@@ -846,7 +976,7 @@
                 packageSize: 8,
                 lessonsBalance: 5,
                 lessonsCompleted: 11,
-                note: 'Вт и Пт в 17:00',
+                note: 'Подготовка к IELTS (плавающий график)',
                 avatarColor: 'from-emerald-500 to-teal-600'
             },
             {
@@ -894,7 +1024,7 @@
                 packageSize: 4,
                 lessonsBalance: 2,
                 lessonsCompleted: 6,
-                note: 'Пакет по 4 урока, Ср 19:00',
+                note: 'Пакет по 4 урока, разговорный практикум',
                 avatarColor: 'from-sky-500 to-blue-600'
             },
             {
@@ -964,17 +1094,66 @@
             }
         ];
 
+        // Генерация демо-расписания относительно текущего дня (Сегодня, Завтра, +2 дня)
+        function createDefaultPlannedLessons() {
+            const now = new Date();
+            const makeTs = (daysOffset, hours, minutes) => {
+                const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysOffset, hours, minutes, 0, 0);
+                return d.getTime();
+            };
+            return [
+                {
+                    id: 'pl-001',
+                    studentId: 'st-1', // Анна Ковалева — Сегодня в 18:00
+                    timestamp: makeTs(0, 18, 0),
+                    status: 'pending'
+                },
+                {
+                    id: 'pl-002',
+                    studentId: 'st-6', // Илья Новиков — Сегодня в 19:30
+                    timestamp: makeTs(0, 19, 30),
+                    status: 'pending'
+                },
+                {
+                    id: 'pl-003',
+                    studentId: 'st-2', // Дмитрий Соколов — Завтра в 10:00
+                    timestamp: makeTs(1, 10, 0),
+                    status: 'pending'
+                },
+                {
+                    id: 'pl-004',
+                    studentId: 'st-3', // Мария Лебедева — Завтра в 17:00
+                    timestamp: makeTs(1, 17, 0),
+                    status: 'pending'
+                },
+                {
+                    id: 'pl-005',
+                    studentId: 'st-1', // Анна Ковалева — через 2 дня в 10:00
+                    timestamp: makeTs(2, 10, 0),
+                    status: 'pending'
+                },
+                {
+                    id: 'pl-006',
+                    studentId: 'st-5', // Екатерина Волкова — через 3 дня в 19:00
+                    timestamp: makeTs(3, 19, 0),
+                    status: 'pending'
+                }
+            ];
+        }
+
         let students = [];
         let eventsLog = [];
+        let plannedLessons = [];
         let activeStatusFilter = 'all';
         let activeTxTypeFilter = 'all';
         let sortMode = 'priority';
         let currentDetailStudentId = null;
+        let scheduleRepeatWeeks = 1;
 
         const CLOUD_CHUNK_SIZE = 3800;
-        const CLOUD_META_KEY = 'edupay_cloud_meta_v3';
+        const CLOUD_META_KEY = 'edupay_cloud_meta_v4';
         const MAX_EVENTS_HISTORY = 150;
-        let lastKnownCloudMeta = { stChunks: 0, evChunks: 0 };
+        let lastKnownCloudMeta = { stChunks: 0, evChunks: 0, plChunks: 0 };
 
         function isTelegramCloudAvailable() {
             if (!isRealTelegram || !tg || !tg.CloudStorage) return false;
@@ -995,12 +1174,14 @@
         function updateStorageMetricsUI(statusText = 'Сохранено') {
             const studentsJson = JSON.stringify(students);
             const eventsJson = JSON.stringify(eventsLog);
-            const totalBytes = new Blob([studentsJson + eventsJson]).size;
+            const plannedJson = JSON.stringify(plannedLessons);
+            const totalBytes = new Blob([studentsJson + eventsJson + plannedJson]).size;
             const kb = (totalBytes / 1024).toFixed(1);
 
             const stChunks = splitIntoChunks(studentsJson).length;
             const evChunks = splitIntoChunks(eventsJson).length;
-            const totalKeys = stChunks + evChunks + 1;
+            const plChunks = splitIntoChunks(plannedJson).length;
+            const totalKeys = stChunks + evChunks + plChunks + 1;
 
             const modeEl = document.getElementById('storage-mode-label');
             const sizeEl = document.getElementById('storage-size-label');
@@ -1016,14 +1197,17 @@
         function syncDataToTelegramCloud(showNotification = false) {
             const studentsStr = JSON.stringify(students);
             const eventsStr = JSON.stringify(eventsLog.slice(0, MAX_EVENTS_HISTORY));
+            const plannedStr = JSON.stringify(plannedLessons.slice(0, 300));
 
             const stChunks = splitIntoChunks(studentsStr);
             const evChunks = splitIntoChunks(eventsStr);
+            const plChunks = splitIntoChunks(plannedStr);
 
             const meta = {
                 updatedAt: Date.now(),
                 stChunks: stChunks.length,
-                evChunks: evChunks.length
+                evChunks: evChunks.length,
+                plChunks: plChunks.length
             };
 
             if (isTelegramCloudAvailable()) {
@@ -1034,10 +1218,17 @@
                 for (let i = evChunks.length; i < (lastKnownCloudMeta.evChunks || 0); i++) {
                     staleKeys.push(`edupay_ev_${i}`);
                 }
+                for (let i = plChunks.length; i < (lastKnownCloudMeta.plChunks || 0); i++) {
+                    staleKeys.push(`edupay_pl_${i}`);
+                }
                 if (staleKeys.length > 0 && typeof tg.CloudStorage.removeItems === 'function') {
                     tg.CloudStorage.removeItems(staleKeys, () => {});
                 }
-                lastKnownCloudMeta = { stChunks: stChunks.length, evChunks: evChunks.length };
+                lastKnownCloudMeta = {
+                    stChunks: stChunks.length,
+                    evChunks: evChunks.length,
+                    plChunks: plChunks.length
+                };
 
                 stChunks.forEach((chunk, idx) => {
                     tg.CloudStorage.setItem(`edupay_st_${idx}`, chunk, (err) => {
@@ -1051,18 +1242,24 @@
                     });
                 });
 
+                plChunks.forEach((chunk, idx) => {
+                    tg.CloudStorage.setItem(`edupay_pl_${idx}`, chunk, (err) => {
+                        if (err) logSDK(`Ошибка CloudStorage (pl_${idx}): ${err}`);
+                    });
+                });
+
                 tg.CloudStorage.setItem(CLOUD_META_KEY, JSON.stringify(meta), (err) => {
                     if (!err) {
-                        logSDK(`CloudStorage.setItem: синхронизировано (${stChunks.length + evChunks.length} ключ.)`);
+                        logSDK(`CloudStorage.setItem: синхронизировано (${stChunks.length + evChunks.length + plChunks.length} ключ.)`);
                         updateStorageMetricsUI('☁️ Синхронизировано');
-                        if (showNotification) showToast('Данные выгружены в облако Telegram!');
+                        if (showNotification) showToast('Данные и расписание выгружены в облако Telegram!');
                     }
                 });
             } else {
                 try {
                     localStorage.setItem(CLOUD_META_KEY, JSON.stringify(meta));
                 } catch (e) {}
-                logSDK(`[Sim] CloudStorage.setItem("${CLOUD_META_KEY}", ключей: ${stChunks.length + evChunks.length})`);
+                logSDK(`[Sim] CloudStorage.setItem("${CLOUD_META_KEY}", ключей: ${stChunks.length + evChunks.length + plChunks.length})`);
                 updateStorageMetricsUI('💾 В LocalStorage');
                 if (showNotification) {
                     showToast('Сохранено в LocalStorage (в Telegram будет синхронизировано с CloudStorage)');
@@ -1091,10 +1288,15 @@
 
                 try {
                     const meta = JSON.parse(metaVal);
-                    lastKnownCloudMeta = { stChunks: meta.stChunks || 1, evChunks: meta.evChunks || 1 };
+                    lastKnownCloudMeta = {
+                        stChunks: meta.stChunks || 1,
+                        evChunks: meta.evChunks || 1,
+                        plChunks: meta.plChunks || 1
+                    };
                     const keysToFetch = [];
                     for (let i = 0; i < (meta.stChunks || 1); i++) keysToFetch.push(`edupay_st_${i}`);
                     for (let i = 0; i < (meta.evChunks || 1); i++) keysToFetch.push(`edupay_ev_${i}`);
+                    for (let i = 0; i < (meta.plChunks || 1); i++) keysToFetch.push(`edupay_pl_${i}`);
 
                     tg.CloudStorage.getItems(keysToFetch, (fetchErr, values) => {
                         if (fetchErr || !values) return;
@@ -1109,6 +1311,11 @@
                             fullEvStr += (values[`edupay_ev_${i}`] || '');
                         }
 
+                        let fullPlStr = '';
+                        for (let i = 0; i < (meta.plChunks || 1); i++) {
+                            fullPlStr += (values[`edupay_pl_${i}`] || '');
+                        }
+
                         if (fullStStr) {
                             students = JSON.parse(fullStStr);
                             localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
@@ -1117,13 +1324,17 @@
                             eventsLog = JSON.parse(fullEvStr);
                             localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(eventsLog));
                         }
+                        if (fullPlStr) {
+                            plannedLessons = JSON.parse(fullPlStr);
+                            localStorage.setItem(STORAGE_KEY_PLANNED, JSON.stringify(plannedLessons));
+                        }
 
                         updateAllViews();
                         updateStorageMetricsUI('☁️ Из TG Cloud');
-                        logSDK(`CloudStorage.getItems: загружено студентов (${students.length}), событий (${eventsLog.length})`);
+                        logSDK(`CloudStorage.getItems: студентов (${students.length}), уроков в плане (${plannedLessons.length})`);
                         if (isManualTrigger) {
                             triggerHaptic('success');
-                            showToast('База успешно загружена из облака Telegram!');
+                            showToast('База и расписание загружены из облака Telegram!');
                         }
                     });
                 } catch (parseErr) {
@@ -1136,11 +1347,14 @@
             try {
                 const rawSt = localStorage.getItem(STORAGE_KEY_STUDENTS);
                 const rawEv = localStorage.getItem(STORAGE_KEY_EVENTS);
+                const rawPl = localStorage.getItem(STORAGE_KEY_PLANNED);
                 students = rawSt ? JSON.parse(rawSt) : JSON.parse(JSON.stringify(defaultStudents));
                 eventsLog = rawEv ? JSON.parse(rawEv) : JSON.parse(JSON.stringify(defaultEvents));
+                plannedLessons = rawPl ? JSON.parse(rawPl) : createDefaultPlannedLessons();
             } catch (e) {
                 students = JSON.parse(JSON.stringify(defaultStudents));
                 eventsLog = JSON.parse(JSON.stringify(defaultEvents));
+                plannedLessons = createDefaultPlannedLessons();
             }
         }
 
@@ -1158,9 +1372,14 @@
             if (eventsLog.length > MAX_EVENTS_HISTORY) {
                 eventsLog = eventsLog.slice(0, MAX_EVENTS_HISTORY);
             }
+            // Очищаем очень старые отмененные записи, чтобы база оставалась компактной
+            if (plannedLessons.length > 300) {
+                plannedLessons = plannedLessons.filter(p => p.status === 'pending').slice(0, 300);
+            }
             try {
                 localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
                 localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(eventsLog));
+                localStorage.setItem(STORAGE_KEY_PLANNED, JSON.stringify(plannedLessons));
             } catch (e) {}
             syncDataToTelegramCloud(false);
             markLiveSaveStatus('• ✓ Сохранено', false);
@@ -1193,10 +1412,11 @@
             triggerHaptic('light');
             const backupPayload = {
                 app: 'EduPay_TMA_RUB',
-                version: 2,
+                version: 3,
                 exportedAt: new Date().toISOString(),
                 students,
-                eventsLog
+                eventsLog,
+                plannedLessons
             };
             const blob = new Blob([JSON.stringify(backupPayload, null, 2)], { type: 'application/json;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
@@ -1221,9 +1441,10 @@
                     if (Array.isArray(parsed.students)) {
                         students = parsed.students;
                         eventsLog = Array.isArray(parsed.eventsLog) ? parsed.eventsLog : [];
+                        plannedLessons = Array.isArray(parsed.plannedLessons) ? parsed.plannedLessons : [];
                         saveData();
                         triggerHaptic('success');
-                        showToast(`Импортировано студентов: ${students.length}`);
+                        showToast(`Импортировано: ${students.length} студ., ${plannedLessons.length} запл. ур.`);
                         logSDK(`Импорт .JSON: загружено ${students.length} студентов`);
                     } else {
                         triggerHaptic('error');
@@ -1241,20 +1462,25 @@
         function resetDemoData() {
             askConfirmation(
                 'Сбросить данные к демо-базе?',
-                'Все добавленные студенты и история уроков будут заменены демонстрационными данными.',
+                'Все добавленные студенты, расписание и история уроков будут заменены демонстрационными данными.',
                 () => {
                     triggerHaptic('warning');
                     students = JSON.parse(JSON.stringify(defaultStudents));
                     eventsLog = JSON.parse(JSON.stringify(defaultEvents));
+                    plannedLessons = createDefaultPlannedLessons();
                     saveData();
-                    showToast('Демо-данные успешно восстановлены', 'info');
+                    showToast('Демо-данные и расписание восстановлены', 'info');
                 }
             );
         }
 
         /********************************************************************
-         * 3. РАСЧЕТЫ И ФОРМАТИРОВАНИЕ (В РУБЛЯХ ₽)
+         * 3. РАСЧЕТЫ, ДАТЫ РАСПИСАНИЯ И ФОРМАТИРОВАНИЕ (В РУБЛЯХ ₽)
          ********************************************************************/
+        const SHORT_DAYS_RU = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+        const SHORT_MONTHS_RU = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+        const FULL_MONTHS_GEN_RU = ['Января', 'Февраля', 'Марта', 'Апреля', 'Мая', 'Июня', 'Июля', 'Августа', 'Сентября', 'Октября', 'Ноября', 'Декабря'];
+
         function formatRub(amount) {
             return new Intl.NumberFormat('ru-RU').format(Math.round(Number(amount) || 0)) + ' ₽';
         }
@@ -1274,6 +1500,78 @@
             const datePart = d.toLocaleDateString('ru-RU');
             const timePart = d.toTimeString().slice(0, 5);
             return `${datePart} ${timePart}`;
+        }
+
+        function toDateInputString(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function toTimeInputString(dateObj) {
+            const h = String(dateObj.getHours()).padStart(2, '0');
+            const m = String(dateObj.getMinutes()).padStart(2, '0');
+            return `${h}:${m}`;
+        }
+
+        function isSameDay(d1, d2) {
+            return d1.getFullYear() === d2.getFullYear() &&
+                   d1.getMonth() === d2.getMonth() &&
+                   d1.getDate() === d2.getDate();
+        }
+
+        // Формат для карточки студента: "Ср, 18 окт • 18:00"
+        function formatPlannedChipDate(ts) {
+            const d = new Date(Number(ts));
+            const dayName = SHORT_DAYS_RU[d.getDay()];
+            const dayNum = d.getDate();
+            const monthName = SHORT_MONTHS_RU[d.getMonth()];
+            const timeStr = toTimeInputString(d);
+            return `${dayName}, ${dayNum} ${monthName} • ${timeStr}`;
+        }
+
+        // Формат заголовка дня в глобальном Расписании: "Сегодня, 18 Октября", "Завтра, 19 Октября"
+        function formatTimelineDayHeader(dayStartTs) {
+            const d = new Date(Number(dayStartTs));
+            const now = new Date();
+            const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+            const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+
+            const dayNum = d.getDate();
+            const monthGen = FULL_MONTHS_GEN_RU[d.getMonth()];
+            const weekday = SHORT_DAYS_RU[d.getDay()];
+
+            if (isSameDay(d, now)) {
+                return { title: `Сегодня, ${dayNum} ${monthGen}`, isToday: true, isPast: false };
+            }
+            if (isSameDay(d, tomorrow)) {
+                return { title: `Завтра, ${dayNum} ${monthGen}`, isToday: false, isPast: false };
+            }
+            if (isSameDay(d, yesterday)) {
+                return { title: `Вчера, ${dayNum} ${monthGen} (ожидает отметки)`, isToday: false, isPast: true };
+            }
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const isPast = dayStartTs < todayStart;
+            return {
+                title: `${weekday}, ${dayNum} ${monthGen}${isPast ? ' (прошедшая дата)' : ''}`,
+                isToday: false,
+                isPast
+            };
+        }
+
+        // Проверка: наступил ли уже день/время урока (чтобы подсвечивать кнопку «✓ Провести (Списать 1 ур.)»)
+        function isPlannedLessonReadyToConduct(ts) {
+            const d = new Date(Number(ts));
+            const now = new Date();
+            if (isSameDay(d, now)) return true;
+            return Number(ts) <= now.getTime();
+        }
+
+        function getPendingLessonsForStudent(studentId) {
+            return plannedLessons
+                .filter(pl => pl.studentId === studentId && pl.status === 'pending')
+                .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
         }
 
         function getStudentBalanceState(student) {
@@ -1306,7 +1604,7 @@
             return 'уроков';
         }
 
-        function showToast(message, type = 'success', undoEventId = null) {
+        function showToast(message, type = 'success', undoActionOrEventId = null) {
             const container = document.getElementById('toast-container');
             if (!container) return;
             container.innerHTML = '';
@@ -1325,12 +1623,16 @@
             textSpan.textContent = message;
             toast.appendChild(textSpan);
 
-            if (undoEventId) {
+            if (undoActionOrEventId) {
                 const undoBtn = document.createElement('button');
                 undoBtn.className = 'px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs shrink-0 active:scale-95 transition';
                 undoBtn.textContent = 'Отменить';
                 undoBtn.onclick = () => {
-                    undoEventById(undoEventId);
+                    if (typeof undoActionOrEventId === 'function') {
+                        undoActionOrEventId();
+                    } else {
+                        undoEventById(undoActionOrEventId);
+                    }
                     toast.remove();
                 };
                 toast.appendChild(undoBtn);
@@ -1345,19 +1647,28 @@
                     toast.style.transition = 'opacity 0.25s ease';
                     setTimeout(() => toast.remove(), 250);
                 }
-            }, undoEventId ? 4500 : 2600);
+            }, undoActionOrEventId ? 4500 : 2600);
         }
 
         /********************************************************************
-         * 4. СПИСАНИЕ УРОКА В 1 КЛИК И ОТМЕНА (UNDO)
+         * 4. СПИСАНИЕ УРОКА (В 1 КЛИК ИЛИ ИЗ РАСПИСАНИЯ) И ОТМЕНА (UNDO)
          ********************************************************************/
-        function conductLessonOneClick(studentId, domEvent = null) {
+        function conductLessonOneClick(studentId, domEvent = null, plannedLessonId = null) {
             if (domEvent) domEvent.stopPropagation();
 
             const st = students.find(s => s.id === studentId);
             if (!st) return;
 
             triggerHaptic('medium');
+
+            let scheduleDateLabel = '';
+            if (plannedLessonId) {
+                const pl = plannedLessons.find(p => p.id === plannedLessonId);
+                if (pl && pl.status === 'pending') {
+                    pl.status = 'completed';
+                    scheduleDateLabel = ` • по расписанию ${formatPlannedChipDate(pl.timestamp)}`;
+                }
+            }
 
             st.lessonsBalance = (Number(st.lessonsBalance) || 0) - 1;
             st.lessonsCompleted = (Number(st.lessonsCompleted) || 0) + 1;
@@ -1370,7 +1681,8 @@
                 lessonsDelta: -1,
                 amountRub: Number(st.lessonPrice) || 0,
                 date: formatNowDateTime(),
-                comment: `Проведен 1 урок (${formatRub(st.lessonPrice)})`
+                plannedLessonId: plannedLessonId || null,
+                comment: `Проведен 1 урок (${formatRub(st.lessonPrice)})${scheduleDateLabel}`
             };
 
             eventsLog.unshift(newEvent);
@@ -1384,8 +1696,44 @@
                 ? `долг ${Math.abs(st.lessonsBalance)} ур.` 
                 : `остаток ${st.lessonsBalance} ур.`;
 
-            showToast(`✓ Списан 1 урок у ${st.name} (${balText})`, 'success', newEvent.id);
+            showToast(`✓ Проведен урок: ${st.name} (${balText})`, 'success', newEvent.id);
             logSDK(`Списан 1 урок у ${st.name}: баланс = ${st.lessonsBalance}`);
+        }
+
+        // Проведение запланированного урока из вкладки «Расписание» или из блока «Запланированные уроки»
+        function conductPlannedLesson(plannedLessonId, domEvent = null) {
+            if (domEvent) domEvent.stopPropagation();
+            const pl = plannedLessons.find(p => p.id === plannedLessonId);
+            if (!pl || pl.status !== 'pending') return;
+            conductLessonOneClick(pl.studentId, null, pl.id);
+        }
+
+        // Отмена запланированного урока [✕] без списания баланса
+        function cancelPlannedLesson(plannedLessonId, domEvent = null) {
+            if (domEvent) domEvent.stopPropagation();
+            const pl = plannedLessons.find(p => p.id === plannedLessonId);
+            if (!pl) return;
+
+            triggerHaptic('warning');
+            pl.status = 'cancelled';
+            saveData();
+
+            if (currentDetailStudentId && !document.getElementById('view-student-detail').classList.contains('hidden')) {
+                openStudentDetail(currentDetailStudentId, false);
+            }
+
+            const st = students.find(s => s.id === pl.studentId);
+            const stName = st ? st.name : 'Студент';
+
+            showToast(`Урок ${formatPlannedChipDate(pl.timestamp)} (${stName}) отменен`, 'warning', () => {
+                pl.status = 'pending';
+                saveData();
+                if (currentDetailStudentId && !document.getElementById('view-student-detail').classList.contains('hidden')) {
+                    openStudentDetail(currentDetailStudentId, false);
+                }
+                showToast('Урок возвращен в расписание');
+            });
+            logSDK(`Запланированный урок ${plannedLessonId} отменен`);
         }
 
         function undoEventById(eventId) {
@@ -1404,6 +1752,14 @@
                 }
             }
 
+            // Если событие было создано кнопкой «✓ Провести» из расписания — возвращаем урок обратно в статус pending
+            if (ev.plannedLessonId) {
+                const pl = plannedLessons.find(p => p.id === ev.plannedLessonId);
+                if (pl) {
+                    pl.status = 'pending';
+                }
+            }
+
             eventsLog.splice(idx, 1);
             saveData();
 
@@ -1416,7 +1772,364 @@
         }
 
         /********************************************************************
-         * 5. ДАШБОРД И СПИСОК СТУДЕНТОВ
+         * 5. МОДАЛЬНОЕ ОКНО ПЛАНИРОВАНИЯ / ПЕРЕНОСА УРОКОВ И ВКЛАДКА «РАСПИСАНИЕ»
+         ********************************************************************/
+        function renderScheduleQuickDays() {
+            const container = document.getElementById('sched-quick-days');
+            if (!container) return;
+            const now = new Date();
+            const currentSelectedDate = document.getElementById('sched-date-input').value;
+
+            const options = [
+                { label: 'Сегодня', offset: 0 },
+                { label: 'Завтра', offset: 1 },
+                { label: 'Послезавтра', offset: 2 },
+                { label: '+1 неделя', offset: 7 }
+            ];
+
+            container.innerHTML = options.map(opt => {
+                const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + opt.offset);
+                const dateStr = toDateInputString(d);
+                const dayShort = SHORT_DAYS_RU[d.getDay()];
+                const isSelected = currentSelectedDate === dateStr;
+                return `
+                    <button type="button" onclick="setScheduleQuickDate('${dateStr}')" class="p-2 rounded-xl border text-center transition active:scale-95 ${isSelected ? 'bg-sky-500/20 border-sky-500 text-sky-400 font-bold' : 'bg-tg-secBg border-tg-border text-tg-text hover:border-sky-500/40'}">
+                        <div class="text-[11px] font-semibold truncate">${opt.label}</div>
+                        <div class="text-[10px] text-tg-hint mt-0.5">${dayShort}, ${d.getDate()} ${SHORT_MONTHS_RU[d.getMonth()]}</div>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function setScheduleQuickDate(dateStr) {
+            triggerHaptic('selection');
+            document.getElementById('sched-date-input').value = dateStr;
+            updateScheduleModalPreview();
+        }
+
+        function setScheduleQuickTime(timeStr) {
+            triggerHaptic('selection');
+            document.getElementById('sched-time-input').value = timeStr;
+            updateScheduleModalPreview();
+        }
+
+        function setScheduleRepeatCount(weeksCount) {
+            triggerHaptic('selection');
+            scheduleRepeatWeeks = weeksCount;
+            document.querySelectorAll('.repeat-pill').forEach(btn => {
+                if (Number(btn.dataset.repeatBtn) === weeksCount) {
+                    btn.className = 'repeat-pill py-1.5 px-2 rounded-lg text-xs font-bold bg-tg-btn text-tg-btnText border border-sky-500/30 transition';
+                } else {
+                    btn.className = 'repeat-pill py-1.5 px-2 rounded-lg text-xs font-semibold bg-tg-cardBg text-tg-hint border border-tg-border transition';
+                }
+            });
+            updateScheduleModalPreview();
+        }
+
+        function updateScheduleModalPreview() {
+            renderScheduleQuickDays();
+            const dateVal = document.getElementById('sched-date-input').value;
+            const timeVal = document.getElementById('sched-time-input').value;
+            const editId = document.getElementById('sched-edit-id').value;
+            const previewEl = document.getElementById('sched-human-preview');
+
+            if (!dateVal || !timeVal) return;
+            const [y, m, d] = dateVal.split('-').map(Number);
+            const [hh, mm] = timeVal.split(':').map(Number);
+            const dt = new Date(y, m - 1, d, hh, mm);
+            const formatted = formatPlannedChipDate(dt.getTime());
+
+            if (previewEl) {
+                previewEl.textContent = editId
+                    ? `📅 Перенос на: ${formatted}`
+                    : scheduleRepeatWeeks > 1
+                    ? `📅 ${formatted} (× ${scheduleRepeatWeeks} нед.)`
+                    : `📅 ${formatted}`;
+            }
+
+            const btnLabel = editId
+                ? `СОХРАНИТЬ ПЕРЕНОС (${formatted})`
+                : scheduleRepeatWeeks > 1
+                ? `ЗАПЛАНИРОВАТЬ ${scheduleRepeatWeeks} УР.`
+                : `ЗАПЛАНИРОВАТЬ (${formatted})`;
+
+            if (tg && tg.MainButton && !document.getElementById('modal-schedule').classList.contains('hidden')) {
+                tg.MainButton.setText(btnLabel);
+            }
+            const simMainBtn = document.getElementById('sim-main-button-text');
+            if (simMainBtn && !document.getElementById('modal-schedule').classList.contains('hidden')) {
+                simMainBtn.textContent = btnLabel;
+            }
+        }
+
+        // Открытие модального окна планирования нового урока или переноса существующего [Перенести ✏️]
+        function openScheduleModal(preselectedStudentId = null, editPlannedLessonId = null, domEvent = null) {
+            if (domEvent) domEvent.stopPropagation();
+            triggerHaptic('light');
+
+            const modal = document.getElementById('modal-schedule');
+            const titleEl = document.getElementById('modal-schedule-title');
+            const subtitleEl = document.getElementById('modal-schedule-subtitle');
+            const selectEl = document.getElementById('sched-student-id');
+            const repeatWrap = document.getElementById('sched-repeat-wrapper');
+
+            selectEl.innerHTML = students.map(s => {
+                return `<option value="${s.id}">${escapeHTML(s.name)} (${formatRub(s.lessonPrice)}/ур. • баланс: ${s.lessonsBalance} ур.)</option>`;
+            }).join('');
+
+            if (editPlannedLessonId) {
+                const pl = plannedLessons.find(p => p.id === editPlannedLessonId);
+                if (!pl) return;
+                document.getElementById('sched-edit-id').value = pl.id;
+                selectEl.value = pl.studentId;
+                selectEl.disabled = true;
+
+                const d = new Date(Number(pl.timestamp));
+                document.getElementById('sched-date-input').value = toDateInputString(d);
+                document.getElementById('sched-time-input').value = toTimeInputString(d);
+
+                titleEl.textContent = 'Перенести урок ✏️';
+                subtitleEl.textContent = 'Выберите новую дату и время занятия';
+                repeatWrap.classList.add('hidden');
+                setScheduleRepeatCount(1);
+            } else {
+                document.getElementById('sched-edit-id').value = '';
+                selectEl.disabled = false;
+                if (preselectedStudentId) {
+                    selectEl.value = preselectedStudentId;
+                }
+
+                // По умолчанию предлагаем сегодня или дату после последнего запланированного урока студента
+                const targetStId = selectEl.value;
+                const existingForSt = getPendingLessonsForStudent(targetStId);
+                let defaultDate = new Date();
+                let defaultTime = '18:00';
+
+                if (existingForSt.length > 0) {
+                    const lastDt = new Date(Number(existingForSt[existingForSt.length - 1].timestamp));
+                    // Удобно для накликивания расписания: предлагаем +2 дня от последнего запланированного урока
+                    defaultDate = new Date(lastDt.getFullYear(), lastDt.getMonth(), lastDt.getDate() + 2);
+                    defaultTime = toTimeInputString(lastDt);
+                }
+
+                document.getElementById('sched-date-input').value = toDateInputString(defaultDate);
+                document.getElementById('sched-time-input').value = defaultTime;
+
+                titleEl.textContent = 'Запланировать урок';
+                subtitleEl.textContent = 'Подходит для плавающего и фиксированного графика';
+                repeatWrap.classList.remove('hidden');
+                setScheduleRepeatCount(1);
+            }
+
+            modal.classList.remove('hidden');
+            showBackButton();
+            showMainButton('ЗАПЛАНИРОВАТЬ УРОК', () => savePlannedLessonFromModal());
+            updateScheduleModalPreview();
+        }
+
+        function savePlannedLessonFromModal() {
+            const editId = document.getElementById('sched-edit-id').value;
+            const studentId = document.getElementById('sched-student-id').value;
+            const dateVal = document.getElementById('sched-date-input').value;
+            const timeVal = document.getElementById('sched-time-input').value;
+
+            if (!studentId || !dateVal || !timeVal) {
+                triggerHaptic('error');
+                showToast('Выберите студента, дату и время урока', 'warning');
+                return;
+            }
+
+            const [y, m, d] = dateVal.split('-').map(Number);
+            const [hh, mm] = timeVal.split(':').map(Number);
+            const baseDate = new Date(y, m - 1, d, hh, mm, 0, 0);
+            const st = students.find(s => s.id === studentId);
+
+            if (editId) {
+                const pl = plannedLessons.find(p => p.id === editId);
+                if (pl) {
+                    pl.timestamp = baseDate.getTime();
+                    pl.status = 'pending';
+                }
+                triggerHaptic('success');
+                closeModals();
+                saveData();
+                showToast(`Урок перенесен на ${formatPlannedChipDate(baseDate.getTime())}`);
+                logSDK(`Перенесен урок ${editId} на ${baseDate.toISOString()}`);
+                return;
+            }
+
+            const count = Math.max(1, scheduleRepeatWeeks || 1);
+            for (let i = 0; i < count; i++) {
+                const lessonDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + (i * 7), hh, mm, 0, 0);
+                plannedLessons.push({
+                    id: 'pl-' + Date.now() + '-' + i + '-' + Math.random().toString(36).slice(2, 5),
+                    studentId,
+                    timestamp: lessonDate.getTime(),
+                    status: 'pending'
+                });
+            }
+
+            triggerHaptic('success');
+            closeModals();
+            saveData();
+
+            if (count > 1) {
+                showToast(`Добавлено ${count} ур. в расписание для ${st ? st.name : 'студента'}`);
+            } else {
+                showToast(`Урок запланирован: ${formatPlannedChipDate(baseDate.getTime())}`);
+            }
+            logSDK(`Запланировано уроков (${count}) для ${studentId}`);
+        }
+
+        // Рендер глобальной вкладки «Расписание» (Timeline всех студентов по дням)
+        function renderScheduleTimeline() {
+            const container = document.getElementById('schedule-timeline-list');
+            if (!container) return;
+
+            const pending = plannedLessons
+                .filter(pl => pl.status === 'pending' && students.some(s => s.id === pl.studentId))
+                .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+
+            const now = new Date();
+            let todayCount = 0;
+            let expectedRub = 0;
+
+            pending.forEach(pl => {
+                const st = students.find(s => s.id === pl.studentId);
+                if (st) expectedRub += Number(st.lessonPrice) || 0;
+                if (isSameDay(new Date(Number(pl.timestamp)), now)) {
+                    todayCount++;
+                }
+            });
+
+            // Обновление бейджей в шапке и в нижней панели навигации
+            const todayBadge = document.getElementById('schedule-today-badge');
+            const statToday = document.getElementById('sched-stat-today');
+            const statTotal = document.getElementById('sched-stat-total');
+            const statRub = document.getElementById('sched-stat-rub');
+            const navBadge = document.getElementById('nav-schedule-badge');
+
+            if (todayBadge) todayBadge.textContent = `Сегодня: ${todayCount} ур.`;
+            if (statToday) statToday.textContent = `${todayCount} ${pluralizeLessons(todayCount)}`;
+            if (statTotal) statTotal.textContent = `${pending.length} ${pluralizeLessons(pending.length)}`;
+            if (statRub) statRub.textContent = formatRub(expectedRub);
+
+            if (navBadge) {
+                const badgeCount = todayCount > 0 ? todayCount : pending.length;
+                if (badgeCount > 0) {
+                    navBadge.textContent = badgeCount;
+                    navBadge.classList.remove('hidden');
+                    navBadge.className = `absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full ${todayCount > 0 ? 'bg-emerald-500' : 'bg-sky-500'} text-white text-[9px] font-bold flex items-center justify-center`;
+                } else {
+                    navBadge.classList.add('hidden');
+                }
+            }
+
+            if (pending.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-tg-cardBg rounded-2xl p-8 text-center border border-tg-border space-y-2.5">
+                        <div class="text-3xl">📅</div>
+                        <p class="text-sm font-bold text-tg-text">В расписании пока нет уроков</p>
+                        <p class="text-xs text-tg-hint max-w-xs mx-auto">Добавляйте уроки по фиксированному или плавающему графику — они выстроятся здесь в удобную ленту по дням.</p>
+                        <button onclick="openScheduleModal()" class="mt-2 py-2.5 px-4 rounded-xl bg-tg-btn text-tg-btnText text-xs font-bold shadow-xs active:scale-95 transition">
+                            + Запланировать первый урок
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            // Группируем уроки по локальному календарному дню
+            const groupsMap = new Map();
+            pending.forEach(pl => {
+                const d = new Date(Number(pl.timestamp));
+                const dayKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                if (!groupsMap.has(dayKey)) {
+                    groupsMap.set(dayKey, []);
+                }
+                groupsMap.get(dayKey).push(pl);
+            });
+
+            const htmlGroups = [];
+            groupsMap.forEach((dayLessons, dayStartTs) => {
+                const headerInfo = formatTimelineDayHeader(dayStartTs);
+                const headerBadgeClass = headerInfo.isToday
+                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                    : headerInfo.isPast
+                    ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                    : 'bg-tg-secBg text-tg-hint border-tg-border';
+
+                const itemsHTML = dayLessons.map(pl => {
+                    const st = students.find(s => s.id === pl.studentId);
+                    if (!st) return '';
+                    const timeStr = toTimeInputString(new Date(Number(pl.timestamp)));
+                    const isReady = isPlannedLessonReadyToConduct(pl.timestamp);
+                    const bal = Number(st.lessonsBalance) || 0;
+                    const balBadge = bal < 0
+                        ? `<span class="text-[10px] font-semibold text-rose-400">Долг ${Math.abs(bal)} ур.</span>`
+                        : bal === 0
+                        ? `<span class="text-[10px] font-semibold text-amber-400">Баланс 0 ур.</span>`
+                        : `<span class="text-[10px] text-emerald-400">Баланс ${bal} ур.</span>`;
+
+                    return `
+                        <div onclick="openStudentDetail('${st.id}')" class="bg-tg-cardBg rounded-2xl p-3.5 border ${isReady ? 'border-emerald-500/35' : 'border-tg-border'} hover:border-sky-500/40 transition cursor-pointer flex items-center justify-between gap-2.5">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="px-2.5 py-1.5 rounded-xl ${isReady ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-tg-secBg text-tg-text border border-tg-border'} font-mono font-bold text-xs shrink-0">
+                                    ${timeStr}
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="text-sm font-bold text-tg-text truncate">${escapeHTML(st.name)}</div>
+                                    <div class="flex items-center gap-1.5 text-[11px] text-tg-hint mt-0.5 truncate">
+                                        <span>${formatRub(st.lessonPrice)}</span>
+                                        <span>•</span>
+                                        ${balBadge}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                ${isReady ? `
+                                    <button onclick="conductPlannedLesson('${pl.id}', event)" class="py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-xs flex items-center gap-1 active:scale-95 transition">
+                                        <span>✓ Провести</span>
+                                    </button>
+                                ` : `
+                                    <button onclick="conductPlannedLesson('${pl.id}', event)" title="Отметить проведенным и списать 1 урок" class="py-1.5 px-2.5 rounded-xl bg-tg-secBg hover:bg-emerald-500/15 text-tg-hint hover:text-emerald-400 font-semibold text-xs border border-tg-border active:scale-95 transition">
+                                        ✓
+                                    </button>
+                                `}
+                                <button onclick="openScheduleModal('${st.id}', '${pl.id}', event)" title="Перенести урок" class="p-2 rounded-xl bg-tg-secBg text-tg-hint hover:text-tg-text border border-tg-border active:scale-95 transition text-xs">
+                                    ✏️
+                                </button>
+                                <button onclick="cancelPlannedLesson('${pl.id}', event)" title="Отменить урок" class="p-2 rounded-xl bg-tg-secBg text-tg-hint hover:text-rose-400 border border-tg-border active:scale-95 transition text-xs">
+                                    ✕
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                htmlGroups.push(`
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between px-1">
+                            <span class="text-xs font-bold uppercase tracking-wider ${headerInfo.isToday ? 'text-emerald-400' : headerInfo.isPast ? 'text-amber-400' : 'text-tg-hint'}">
+                                ${escapeHTML(headerInfo.title)}
+                            </span>
+                            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-lg border ${headerBadgeClass}">
+                                ${dayLessons.length} ${pluralizeLessons(dayLessons.length)}
+                            </span>
+                        </div>
+                        <div class="space-y-2">
+                            ${itemsHTML}
+                        </div>
+                    </div>
+                `);
+            });
+
+            container.innerHTML = htmlGroups.join('');
+        }
+
+        /********************************************************************
+         * 6. ДАШБОРД И СПИСОК СТУДЕНТОВ
          ********************************************************************/
         function updateDashboardStats() {
             let receivedRub = 0;
@@ -1599,6 +2312,8 @@
                 const safeName = escapeHTML(student.name);
                 const safeTg = escapeHTML(student.tg || 'без @username');
                 const safeNote = escapeHTML(student.note || '');
+                const upcoming = getPendingLessonsForStudent(student.id);
+                const nextLesson = upcoming[0] || null;
 
                 return `
                     <div onclick="openStudentDetail('${student.id}')" class="bg-tg-cardBg rounded-2xl p-3.5 border ${state === 'debt' ? 'border-rose-500/40' : state === 'zero' ? 'border-amber-500/35' : 'border-tg-border'} hover:border-sky-500/40 transition cursor-pointer">
@@ -1611,7 +2326,7 @@
                                     <h3 class="text-sm font-bold text-tg-text truncate">${safeName}</h3>
                                     <div class="flex items-center gap-1.5 text-xs text-tg-hint mt-0.5 truncate">
                                         <span class="font-medium text-tg-link">${safeTg}</span>
-                                        ${safeNote ? `<span>•</span><span class="truncate">${safeNote}</span>` : ''}
+                                        ${nextLesson ? `<span>•</span><span class="text-sky-400 font-medium truncate">📅 ${formatPlannedChipDate(nextLesson.timestamp)}</span>` : safeNote ? `<span>•</span><span class="truncate">${safeNote}</span>` : ''}
                                     </div>
                                 </div>
                             </div>
@@ -1634,7 +2349,7 @@
 
                         <div class="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-tg-border">
                             <button 
-                                onclick="conductLessonOneClick('${student.id}', event)" 
+                                onclick="conductLessonOneClick('${student.id}', event, '${nextLesson ? nextLesson.id : ''}')" 
                                 class="py-2 px-3 rounded-xl bg-tg-secBg hover:bg-sky-500/15 text-tg-text hover:text-sky-400 font-semibold text-xs border border-tg-border flex items-center justify-center gap-1.5 active:scale-95 transition"
                             >
                                 <svg class="w-4 h-4 text-sky-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1656,7 +2371,7 @@
         }
 
         /********************************************************************
-         * 6. НАПОМИНАНИЯ И ДЕТАЛЬНЫЙ ПРОФИЛЬ СТУДЕНТА
+         * 7. НАПОМИНАНИЯ И ДЕТАЛЬНЫЙ ПРОФИЛЬ СТУДЕНТА (С БЛОКОМ «ЗАПЛАНИРОВАННЫЕ УРОКИ»)
          ********************************************************************/
         function copyReminderForStudent(studentId) {
             const st = students.find(s => s.id === studentId);
@@ -1694,6 +2409,7 @@
             if (triggerVibro) triggerHaptic('light');
 
             document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-schedule').classList.add('hidden');
             document.getElementById('view-transactions').classList.add('hidden');
             document.getElementById('view-reports').classList.add('hidden');
             document.getElementById('view-student-detail').classList.remove('hidden');
@@ -1709,12 +2425,54 @@
             });
 
             const studentEvents = eventsLog.filter(e => e.studentId === st.id);
+            const studentPlanned = getPendingLessonsForStudent(st.id);
             const safeName = escapeHTML(st.name);
             const safeTg = escapeHTML(st.tg || 'Telegram не указан');
             const safeNote = escapeHTML(st.note || '');
 
+            const plannedListHTML = studentPlanned.length === 0 ? `
+                <div class="p-3.5 rounded-xl bg-tg-secBg/60 border border-tg-border text-center">
+                    <p class="text-xs text-tg-hint">Нет запланированных уроков. Нажмите «+ Запланировать урок», чтобы добавить дату.</p>
+                </div>
+            ` : `
+                <div class="space-y-2">
+                    ${studentPlanned.map(pl => {
+                        const isReady = isPlannedLessonReadyToConduct(pl.timestamp);
+                        return `
+                            <div class="p-3 rounded-xl bg-tg-secBg border ${isReady ? 'border-emerald-500/40' : 'border-tg-border'} flex flex-col gap-2">
+                                <div class="flex items-center justify-between gap-2">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <span class="text-sm">📅</span>
+                                        <span class="text-xs font-bold text-tg-text truncate">${formatPlannedChipDate(pl.timestamp)}</span>
+                                        ${isReady ? `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Сегодня / Пора</span>` : ''}
+                                    </div>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <button onclick="openScheduleModal('${st.id}', '${pl.id}', event)" class="px-2.5 py-1 rounded-lg bg-tg-cardBg text-tg-link hover:opacity-85 border border-tg-border text-[11px] font-semibold active:scale-95 transition">
+                                            Перенести ✏️
+                                        </button>
+                                        <button onclick="cancelPlannedLesson('${pl.id}', event)" title="Отменить урок" class="px-2 py-1 rounded-lg bg-tg-cardBg text-tg-hint hover:text-rose-400 border border-tg-border text-[11px] font-bold active:scale-95 transition">
+                                            ✕
+                                        </button>
+                                    </div>
+                                </div>
+                                ${isReady ? `
+                                    <button onclick="conductPlannedLesson('${pl.id}', event)" class="w-full py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 active:scale-95 transition">
+                                        <span>✓ Провести (Списать 1 ур.)</span>
+                                    </button>
+                                ` : `
+                                    <button onclick="conductPlannedLesson('${pl.id}', event)" class="w-full py-1.5 px-3 rounded-lg bg-tg-cardBg hover:bg-emerald-500/15 text-tg-hint hover:text-emerald-400 font-semibold text-[11px] border border-tg-border flex items-center justify-center gap-1 active:scale-95 transition">
+                                        <span>✓ Провести досрочно (Списать 1 ур.)</span>
+                                    </button>
+                                `}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+
             const detailContainer = document.getElementById('student-detail-content');
             detailContainer.innerHTML = `
+                <!-- Карточка профиля, баланса и тарифа -->
                 <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border space-y-4">
                     <div class="flex items-start justify-between gap-3">
                         <div class="flex items-center gap-3">
@@ -1749,7 +2507,7 @@
                         </div>
 
                         <div class="grid grid-cols-2 gap-2 pt-2 border-t border-tg-border">
-                            <button onclick="conductLessonOneClick('${st.id}')" class="py-2.5 px-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 active:scale-95 transition">
+                            <button onclick="conductLessonOneClick('${st.id}', event, '${studentPlanned[0] ? studentPlanned[0].id : ''}')" class="py-2.5 px-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 active:scale-95 transition">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
                                 </svg>
@@ -1789,6 +2547,25 @@
                     </div>
                 </div>
 
+                <!-- НОВЫЙ БЛОК: ЗАПЛАНИРОВАННЫЕ УРОКИ (TIMELINE СТУДЕНТА) -->
+                <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border space-y-3">
+                    <div class="flex items-center justify-between gap-2">
+                        <div>
+                            <h3 class="text-sm font-bold text-tg-text flex items-center gap-1.5">
+                                <span>📅 Запланированные уроки</span>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/20">${studentPlanned.length}</span>
+                            </h3>
+                            <p class="text-[11px] text-tg-hint">Ближайшие даты занятий ученика</p>
+                        </div>
+                        <button onclick="openScheduleModal('${st.id}')" class="py-2 px-3 rounded-xl bg-tg-btn text-tg-btnText font-bold text-xs shadow-xs hover:opacity-95 active:scale-95 transition shrink-0">
+                            + Запланировать урок
+                        </button>
+                    </div>
+
+                    ${plannedListHTML}
+                </div>
+
+                <!-- История уроков и оплат студента -->
                 <div class="bg-tg-cardBg rounded-2xl p-4 border border-tg-border space-y-3">
                     <div class="flex items-center justify-between">
                         <h3 class="text-sm font-bold text-tg-text">История уроков и оплат (${studentEvents.length})</h3>
@@ -1843,10 +2620,11 @@
             if (!st) return;
             askConfirmation(
                 `Удалить профиль «${st.name}»?`,
-                'Студент и его карточка будут удалены из списка. Вы всегда можете сделать резервную копию перед удалением.',
+                'Студент и его запланированные уроки будут удалены из списка.',
                 () => {
                     triggerHaptic('warning');
                     students = students.filter(s => s.id !== studentId);
+                    plannedLessons = plannedLessons.filter(pl => pl.studentId !== studentId);
                     saveData();
                     switchTab('dashboard');
                     showToast('Профиль студента удален', 'warning');
@@ -1855,7 +2633,7 @@
         }
 
         /********************************************************************
-         * 7. МОДАЛЬНЫЕ ОКНА: СТУДЕНТ И ВНЕСЕНИЕ ОПЛАТЫ
+         * 8. МОДАЛЬНЫЕ ОКНА: СТУДЕНТ И ВНЕСЕНИЕ ОПЛАТЫ
          ********************************************************************/
         function selectFormPayType(type) {
             triggerHaptic('selection');
@@ -2127,6 +2905,7 @@
         }
 
         function closeModals() {
+            document.getElementById('modal-schedule').classList.add('hidden');
             document.getElementById('modal-student').classList.add('hidden');
             document.getElementById('modal-payment').classList.add('hidden');
             hideMainButton();
@@ -2138,7 +2917,7 @@
         }
 
         /********************************************************************
-         * 8. ЖУРНАЛ СОБЫТИЙ И ОТЧЕТЫ (СТРОГО БЕЗ КАТЕГОРИЙ ОПЛАТЫ)
+         * 9. ЖУРНАЛ СОБЫТИЙ И ОТЧЕТЫ (СТРОГО БЕЗ КАТЕГОРИЙ ОПЛАТЫ)
          ********************************************************************/
         function setTxTypeFilter(filterVal) {
             triggerHaptic('selection');
@@ -2206,6 +2985,7 @@
             const receivedRub = eventsLog.filter(e => e.type === 'payment').reduce((a, b) => a + (Number(b.amountRub) || 0), 0);
             const earnedRub = eventsLog.filter(e => e.type === 'lesson').reduce((a, b) => a + (Number(b.amountRub) || 0), 0);
             const earnedCount = eventsLog.filter(e => e.type === 'lesson').length;
+            const pendingCount = plannedLessons.filter(p => p.status === 'pending').length;
 
             const debtors = students.filter(s => s.lessonsBalance < 0);
             const zeroStudents = students.filter(s => s.lessonsBalance === 0);
@@ -2219,6 +2999,7 @@
                 `━━━━━━━━━━━━━━━━━━━━`,
                 `💰 Получено оплат: ${formatRub(receivedRub)}`,
                 `🎓 Отработано уроков: ${earnedCount} ур. (на ${formatRub(earnedRub)})`,
+                `📅 Запланировано уроков: ${pendingCount} ур.`,
                 `🔥 Долг за проведенные уроки: ${formatRub(totalDebtRub)} (${debtors.length} чел.)`,
                 `✅ С положительным балансом: ${activeStudents.length} чел.`,
                 ``
@@ -2272,7 +3053,7 @@
 
         function exportCSV() {
             triggerHaptic('light');
-            const headers = ['ID', 'Имя', 'Telegram', 'Тип оплаты', 'Цена урока (₽)', 'Размер пакета', 'Баланс уроков', 'Проведено уроков', 'Заметка'];
+            const headers = ['ID', 'Имя', 'Telegram', 'Тип оплаты', 'Цена урока (₽)', 'Размер пакета', 'Баланс уроков', 'Проведено уроков', 'Запланировано уроков', 'Заметка'];
             const rows = students.map(s => [
                 s.id,
                 `"${s.name}"`,
@@ -2282,6 +3063,7 @@
                 s.packageSize || 1,
                 s.lessonsBalance,
                 s.lessonsCompleted || 0,
+                getPendingLessonsForStudent(s.id).length,
                 `"${(s.note || '').replace(/"/g, '""')}"`
             ]);
 
@@ -2305,6 +3087,7 @@
                 currency: 'RUB',
                 timestamp: Date.now(),
                 totalStudents: students.length,
+                plannedLessonsCount: plannedLessons.filter(p => p.status === 'pending').length,
                 debtStudentsCount: students.filter(s => s.lessonsBalance < 0).length,
                 receivedRub: eventsLog.filter(e => e.type === 'payment').reduce((a, b) => a + Number(b.amountRub), 0)
             };
@@ -2320,32 +3103,35 @@
         }
 
         /********************************************************************
-         * 9. НАВИГАЦИЯ И ТЕМА
+         * 10. НАВИГАЦИЯ (4 ВКЛАДКИ) И ТЕМА
          ********************************************************************/
         function switchTab(tabName) {
             triggerHaptic('selection');
+            activeTabName = tabName;
             currentDetailStudentId = null;
             hideBackButton();
             hideMainButton();
 
-            const views = ['dashboard', 'transactions', 'reports', 'student-detail'];
+            const views = ['dashboard', 'schedule', 'transactions', 'reports', 'student-detail'];
             views.forEach(v => {
                 const el = document.getElementById(`view-${v}`);
                 if (el) el.classList.toggle('hidden', v !== tabName);
             });
 
-            const navIds = ['dashboard', 'transactions', 'reports'];
+            const navIds = ['dashboard', 'schedule', 'transactions', 'reports'];
             navIds.forEach(n => {
                 const btn = document.getElementById(`nav-${n}`);
                 if (!btn) return;
                 if (n === tabName) {
-                    btn.className = 'nav-btn flex flex-col items-center justify-center py-1 rounded-xl text-tg-link transition';
+                    btn.className = 'nav-btn relative flex flex-col items-center justify-center py-1 rounded-xl text-tg-link transition';
                 } else {
-                    btn.className = 'nav-btn flex flex-col items-center justify-center py-1 rounded-xl text-tg-hint hover:text-tg-text transition';
+                    btn.className = 'nav-btn relative flex flex-col items-center justify-center py-1 rounded-xl text-tg-hint hover:text-tg-text transition';
                 }
             });
 
-            if (tabName === 'reports') {
+            if (tabName === 'schedule') {
+                renderScheduleTimeline();
+            } else if (tabName === 'reports') {
                 generateReportText();
             }
         }
@@ -2362,6 +3148,7 @@
         function updateAllViews() {
             updateDashboardStats();
             renderStudents();
+            renderScheduleTimeline();
             renderTransactions();
             generateReportText();
             updateStorageMetricsUI();
