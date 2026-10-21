@@ -1733,10 +1733,16 @@
         let currentDetailStudentId = null;
         let scheduleRepeatWeeks = 1;
 
-        const CLOUD_CHUNK_SIZE = 3800;
+        // Безопасный размер чанка (1400 символов гарантированно < 4096 байт UTF-8 даже для 100% кириллицы)
+        const CLOUD_CHUNK_SIZE = 1400;
         const CLOUD_META_KEY = 'edupay_cloud_meta_v4';
+        const STORAGE_KEY_UPDATED_AT = 'edupay_tma_updated_at_v4';
         const MAX_EVENTS_HISTORY = 150;
         let lastKnownCloudMeta = { stChunks: 0, evChunks: 0, plChunks: 0 };
+        let isCloudSyncRunning = false;
+        let hasPendingCloudSync = false;
+        let pendingSyncNotify = false;
+        let hasUnsavedChanges = false;
 
         function isTelegramCloudAvailable() {
             if (!isRealTelegram || !tg || !tg.CloudStorage) return false;
@@ -1747,11 +1753,83 @@
         }
 
         function splitIntoChunks(str, size = CLOUD_CHUNK_SIZE) {
+            const safeStr = String(str || '[]');
             const chunks = [];
-            for (let i = 0; i < str.length; i += size) {
-                chunks.push(str.slice(i, i + size));
+            for (let i = 0; i < safeStr.length; i += size) {
+                chunks.push(safeStr.slice(i, i + size));
             }
             return chunks.length ? chunks : ['[]'];
+        }
+
+        // Промис-обертки для последовательной работы с Telegram CloudStorage без гонки запросов
+        function cloudSetItemAsync(key, value) {
+            return new Promise((resolve) => {
+                if (!isTelegramCloudAvailable()) {
+                    resolve({ ok: false, err: 'CloudStorage unavailable' });
+                    return;
+                }
+                try {
+                    tg.CloudStorage.setItem(key, value, (err, stored) => {
+                        if (err) {
+                            resolve({ ok: false, err });
+                        } else {
+                            resolve({ ok: true, stored });
+                        }
+                    });
+                } catch (e) {
+                    resolve({ ok: false, err: e.message || 'Exception' });
+                }
+            });
+        }
+
+        function cloudGetItemAsync(key) {
+            return new Promise((resolve) => {
+                if (!isTelegramCloudAvailable()) {
+                    resolve({ ok: false, err: 'CloudStorage unavailable', value: null });
+                    return;
+                }
+                try {
+                    tg.CloudStorage.getItem(key, (err, value) => {
+                        resolve({ ok: !err, err, value });
+                    });
+                } catch (e) {
+                    resolve({ ok: false, err: e.message || 'Exception', value: null });
+                }
+            });
+        }
+
+        function cloudGetItemsAsync(keys) {
+            return new Promise((resolve) => {
+                if (!isTelegramCloudAvailable()) {
+                    resolve({ ok: false, err: 'CloudStorage unavailable', values: null });
+                    return;
+                }
+                try {
+                    tg.CloudStorage.getItems(keys, (err, values) => {
+                        resolve({ ok: !err, err, values });
+                    });
+                } catch (e) {
+                    resolve({ ok: false, err: e.message || 'Exception', values: null });
+                }
+            });
+        }
+
+        function cloudRemoveItemsAsync(keys) {
+            return new Promise((resolve) => {
+                if (!isTelegramCloudAvailable() || !Array.isArray(keys) || keys.length === 0) {
+                    resolve({ ok: true });
+                    return;
+                }
+                try {
+                    if (typeof tg.CloudStorage.removeItems === 'function') {
+                        tg.CloudStorage.removeItems(keys, (err) => resolve({ ok: !err, err }));
+                    } else {
+                        resolve({ ok: true });
+                    }
+                } catch (e) {
+                    resolve({ ok: false, err: e.message || 'Exception' });
+                }
+            });
         }
 
         function updateStorageMetricsUI(statusKey = 'stor_status_saved') {
@@ -1777,80 +1855,119 @@
             if (badgeEl) badgeEl.textContent = t(statusKey);
         }
 
-        function syncDataToTelegramCloud(showNotification = false) {
-            const studentsStr = JSON.stringify(students);
-            const eventsStr = JSON.stringify(eventsLog.slice(0, MAX_EVENTS_HISTORY));
-            const plannedStr = JSON.stringify(plannedLessons.slice(0, 300));
+        async function syncDataToTelegramCloud(showNotification = false) {
+            if (isCloudSyncRunning) {
+                hasPendingCloudSync = true;
+                pendingSyncNotify = pendingSyncNotify || showNotification;
+                return;
+            }
 
-            const stChunks = splitIntoChunks(studentsStr);
-            const evChunks = splitIntoChunks(eventsStr);
-            const plChunks = splitIntoChunks(plannedStr);
+            isCloudSyncRunning = true;
 
-            const meta = {
-                updatedAt: Date.now(),
-                stChunks: stChunks.length,
-                evChunks: evChunks.length,
-                plChunks: plChunks.length
-            };
+            try {
+                const studentsStr = JSON.stringify(students);
+                const eventsStr = JSON.stringify(eventsLog.slice(0, MAX_EVENTS_HISTORY));
+                const plannedStr = JSON.stringify(plannedLessons.slice(0, 300));
 
-            if (isTelegramCloudAvailable()) {
-                const staleKeys = [];
-                for (let i = stChunks.length; i < (lastKnownCloudMeta.stChunks || 0); i++) {
-                    staleKeys.push(`edupay_st_${i}`);
-                }
-                for (let i = evChunks.length; i < (lastKnownCloudMeta.evChunks || 0); i++) {
-                    staleKeys.push(`edupay_ev_${i}`);
-                }
-                for (let i = plChunks.length; i < (lastKnownCloudMeta.plChunks || 0); i++) {
-                    staleKeys.push(`edupay_pl_${i}`);
-                }
-                if (staleKeys.length > 0 && typeof tg.CloudStorage.removeItems === 'function') {
-                    tg.CloudStorage.removeItems(staleKeys, () => {});
-                }
-                lastKnownCloudMeta = {
+                const stChunks = splitIntoChunks(studentsStr);
+                const evChunks = splitIntoChunks(eventsStr);
+                const plChunks = splitIntoChunks(plannedStr);
+
+                const nowTs = Date.now();
+                const meta = {
+                    version: 4,
+                    updatedAt: nowTs,
                     stChunks: stChunks.length,
                     evChunks: evChunks.length,
                     plChunks: plChunks.length
                 };
 
-                stChunks.forEach((chunk, idx) => {
-                    tg.CloudStorage.setItem(`edupay_st_${idx}`, chunk, (err) => {
-                        if (err) logSDK(`CloudStorage error (st_${idx}): ${err}`);
-                    });
-                });
+                if (isTelegramCloudAvailable()) {
+                    // Собираем очередь всех чанков: студенты -> журнал -> расписание
+                    const uploadQueue = [];
+                    stChunks.forEach((chunk, idx) => uploadQueue.push({ key: `edupay_st_${idx}`, val: chunk }));
+                    evChunks.forEach((chunk, idx) => uploadQueue.push({ key: `edupay_ev_${idx}`, val: chunk }));
+                    plChunks.forEach((chunk, idx) => uploadQueue.push({ key: `edupay_pl_${idx}`, val: chunk }));
 
-                evChunks.forEach((chunk, idx) => {
-                    tg.CloudStorage.setItem(`edupay_ev_${idx}`, chunk, (err) => {
-                        if (err) logSDK(`CloudStorage error (ev_${idx}): ${err}`);
-                    });
-                });
-
-                plChunks.forEach((chunk, idx) => {
-                    tg.CloudStorage.setItem(`edupay_pl_${idx}`, chunk, (err) => {
-                        if (err) logSDK(`CloudStorage error (pl_${idx}): ${err}`);
-                    });
-                });
-
-                tg.CloudStorage.setItem(CLOUD_META_KEY, JSON.stringify(meta), (err) => {
-                    if (!err) {
-                        logSDK(`CloudStorage.setItem: synced (${stChunks.length + evChunks.length + plChunks.length} keys)`);
-                        updateStorageMetricsUI('stor_status_synced');
-                        if (showNotification) showToast(t('toast_cloud_pushed'));
+                    // Последовательная отправка каждого чанка с автоматическим повтором при сбое
+                    for (const item of uploadQueue) {
+                        let res = await cloudSetItemAsync(item.key, item.val);
+                        if (!res.ok) {
+                            await new Promise(r => setTimeout(r, 150));
+                            res = await cloudSetItemAsync(item.key, item.val);
+                        }
+                        if (!res.ok) {
+                            logSDK(`CloudStorage error (${item.key}): ${res.err}`);
+                            isCloudSyncRunning = false;
+                            return;
+                        }
                     }
-                });
-            } else {
-                try {
-                    localStorage.setItem(CLOUD_META_KEY, JSON.stringify(meta));
-                } catch (e) {}
-                logSDK(`[Sim] CloudStorage.setItem("${CLOUD_META_KEY}", keys: ${stChunks.length + evChunks.length + plChunks.length})`);
-                updateStorageMetricsUI('stor_status_local');
-                if (showNotification) {
-                    showToast(t('toast_local_saved'));
+
+                    // Записываем META-ключ строго ПОСЛЕ того, как все чанки успешно сохранены
+                    const metaRes = await cloudSetItemAsync(CLOUD_META_KEY, JSON.stringify(meta));
+                    if (!metaRes.ok) {
+                        logSDK(`CloudStorage meta error: ${metaRes.err}`);
+                        isCloudSyncRunning = false;
+                        return;
+                    }
+
+                    // Очищаем устаревшие хвосты чанков, если база уменьшилась
+                    const staleKeys = [];
+                    for (let i = stChunks.length; i < (lastKnownCloudMeta.stChunks || 0); i++) {
+                        staleKeys.push(`edupay_st_${i}`);
+                    }
+                    for (let i = evChunks.length; i < (lastKnownCloudMeta.evChunks || 0); i++) {
+                        staleKeys.push(`edupay_ev_${i}`);
+                    }
+                    for (let i = plChunks.length; i < (lastKnownCloudMeta.plChunks || 0); i++) {
+                        staleKeys.push(`edupay_pl_${i}`);
+                    }
+                    if (staleKeys.length > 0) {
+                        await cloudRemoveItemsAsync(staleKeys);
+                    }
+
+                    lastKnownCloudMeta = {
+                        stChunks: stChunks.length,
+                        evChunks: evChunks.length,
+                        plChunks: plChunks.length
+                    };
+
+                    try {
+                        localStorage.setItem(STORAGE_KEY_UPDATED_AT, String(nowTs));
+                    } catch (e) {}
+
+                    hasUnsavedChanges = false;
+                    logSDK(`CloudStorage push OK: st=${stChunks.length}, ev=${evChunks.length}, pl=${plChunks.length} chunks`);
+                    updateStorageMetricsUI('stor_status_synced');
+                    if (showNotification) showToast(t('toast_cloud_pushed'));
+                } else {
+                    try {
+                        localStorage.setItem(CLOUD_META_KEY, JSON.stringify(meta));
+                        localStorage.setItem(STORAGE_KEY_UPDATED_AT, String(nowTs));
+                    } catch (e) {}
+                    hasUnsavedChanges = false;
+                    logSDK(`[Sim] CloudStorage push (${uploadQueueCount(stChunks, evChunks, plChunks)} keys)`);
+                    updateStorageMetricsUI('stor_status_local');
+                    if (showNotification) {
+                        showToast(t('toast_local_saved'));
+                    }
+                }
+            } finally {
+                isCloudSyncRunning = false;
+                if (hasPendingCloudSync) {
+                    const notifyNext = pendingSyncNotify;
+                    hasPendingCloudSync = false;
+                    pendingSyncNotify = false;
+                    syncDataToTelegramCloud(notifyNext);
                 }
             }
         }
 
-        function loadDataFromTelegramCloud(isManualTrigger = false) {
+        function uploadQueueCount(stChunks, evChunks, plChunks) {
+            return stChunks.length + evChunks.length + plChunks.length + 1;
+        }
+
+        async function loadDataFromTelegramCloud(isManualTrigger = false) {
             if (!isTelegramCloudAvailable()) {
                 if (isManualTrigger) {
                     triggerHaptic('light');
@@ -1862,68 +1979,121 @@
                 return;
             }
 
-            tg.CloudStorage.getItem(CLOUD_META_KEY, (err, metaVal) => {
-                if (err || !metaVal) {
-                    logSDK('CloudStorage empty — pushing local DB to cloud');
-                    syncDataToTelegramCloud(false);
-                    return;
-                }
+            let metaRes = await cloudGetItemAsync(CLOUD_META_KEY);
+            // Фолбэк на случай миграции со старого ключа v3
+            if ((!metaRes.ok || !metaRes.value) && CLOUD_META_KEY !== 'edupay_cloud_meta_v3') {
+                metaRes = await cloudGetItemAsync('edupay_cloud_meta_v3');
+            }
 
+            if (!metaRes.ok || !metaRes.value) {
+                logSDK('CloudStorage empty — pushing local DB to cloud');
+                await syncDataToTelegramCloud(false);
+                return;
+            }
+
+            let meta = null;
+            try {
+                meta = JSON.parse(metaRes.value);
+            } catch (e) {
+                logSDK('Error parsing CloudStorage meta JSON');
+                return;
+            }
+
+            const stCount = Math.max(1, Number(meta.stChunks) || 1);
+            const evCount = Math.max(1, Number(meta.evChunks) || 1);
+            const plCount = Math.max(0, Number(meta.plChunks) || 0);
+
+            lastKnownCloudMeta = {
+                stChunks: stCount,
+                evChunks: evCount,
+                plChunks: plCount
+            };
+
+            const keysToFetch = [];
+            for (let i = 0; i < stCount; i++) keysToFetch.push(`edupay_st_${i}`);
+            for (let i = 0; i < evCount; i++) keysToFetch.push(`edupay_ev_${i}`);
+            for (let i = 0; i < plCount; i++) keysToFetch.push(`edupay_pl_${i}`);
+
+            const fetchRes = await cloudGetItemsAsync(keysToFetch);
+            if (!fetchRes.ok || !fetchRes.values) {
+                logSDK(`CloudStorage getItems error: ${fetchRes.err || 'empty'}`);
+                return;
+            }
+
+            const values = fetchRes.values;
+
+            let fullStStr = '';
+            for (let i = 0; i < stCount; i++) {
+                fullStStr += (values[`edupay_st_${i}`] || '');
+            }
+
+            let fullEvStr = '';
+            for (let i = 0; i < evCount; i++) {
+                fullEvStr += (values[`edupay_ev_${i}`] || '');
+            }
+
+            let fullPlStr = '';
+            for (let i = 0; i < plCount; i++) {
+                fullPlStr += (values[`edupay_pl_${i}`] || '');
+            }
+
+            // Изолированный парсинг каждого массива (ошибка в одном никогда не блокирует остальные)
+            if (fullStStr) {
                 try {
-                    const meta = JSON.parse(metaVal);
-                    lastKnownCloudMeta = {
-                        stChunks: meta.stChunks || 1,
-                        evChunks: meta.evChunks || 1,
-                        plChunks: meta.plChunks || 1
-                    };
-                    const keysToFetch = [];
-                    for (let i = 0; i < (meta.stChunks || 1); i++) keysToFetch.push(`edupay_st_${i}`);
-                    for (let i = 0; i < (meta.evChunks || 1); i++) keysToFetch.push(`edupay_ev_${i}`);
-                    for (let i = 0; i < (meta.plChunks || 1); i++) keysToFetch.push(`edupay_pl_${i}`);
-
-                    tg.CloudStorage.getItems(keysToFetch, (fetchErr, values) => {
-                        if (fetchErr || !values) return;
-
-                        let fullStStr = '';
-                        for (let i = 0; i < (meta.stChunks || 1); i++) {
-                            fullStStr += (values[`edupay_st_${i}`] || '');
-                        }
-
-                        let fullEvStr = '';
-                        for (let i = 0; i < (meta.evChunks || 1); i++) {
-                            fullEvStr += (values[`edupay_ev_${i}`] || '');
-                        }
-
-                        let fullPlStr = '';
-                        for (let i = 0; i < (meta.plChunks || 1); i++) {
-                            fullPlStr += (values[`edupay_pl_${i}`] || '');
-                        }
-
-                        if (fullStStr) {
-                            students = JSON.parse(fullStStr);
-                            localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
-                        }
-                        if (fullEvStr) {
-                            eventsLog = JSON.parse(fullEvStr);
-                            localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(eventsLog));
-                        }
-                        if (fullPlStr) {
-                            plannedLessons = JSON.parse(fullPlStr);
-                            localStorage.setItem(STORAGE_KEY_PLANNED, JSON.stringify(plannedLessons));
-                        }
-
-                        updateAllViews();
-                        updateStorageMetricsUI('stor_status_from_cloud');
-                        logSDK(`CloudStorage.getItems: students (${students.length}), planned (${plannedLessons.length})`);
-                        if (isManualTrigger) {
-                            triggerHaptic('success');
-                            showToast(t('toast_cloud_loaded'));
-                        }
-                    });
-                } catch (parseErr) {
-                    logSDK('Error parsing CloudStorage structure');
+                    const parsedSt = JSON.parse(fullStStr);
+                    if (Array.isArray(parsedSt)) {
+                        students = parsedSt;
+                        localStorage.setItem(STORAGE_KEY_STUDENTS, JSON.stringify(students));
+                    }
+                } catch (stErr) {
+                    logSDK(`Cloud parse error (students): ${stErr.message}`);
                 }
-            });
+            }
+
+            if (fullEvStr) {
+                try {
+                    const parsedEv = JSON.parse(fullEvStr);
+                    if (Array.isArray(parsedEv)) {
+                        eventsLog = parsedEv;
+                        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(eventsLog));
+                    }
+                } catch (evErr) {
+                    logSDK(`Cloud parse error (eventsLog): ${evErr.message}`);
+                }
+            }
+
+            if (fullPlStr) {
+                try {
+                    const parsedPl = JSON.parse(fullPlStr);
+                    if (Array.isArray(parsedPl)) {
+                        plannedLessons = parsedPl;
+                        localStorage.setItem(STORAGE_KEY_PLANNED, JSON.stringify(plannedLessons));
+                    }
+                } catch (plErr) {
+                    logSDK(`Cloud parse error (plannedLessons): ${plErr.message}`);
+                }
+            }
+
+            if (meta.updatedAt) {
+                try {
+                    localStorage.setItem(STORAGE_KEY_UPDATED_AT, String(meta.updatedAt));
+                } catch (e) {}
+            }
+
+            hasUnsavedChanges = false;
+            updateAllViews();
+
+            // Если в момент подтягивания открыт профиль студента — обновляем и его
+            if (currentDetailStudentId && !document.getElementById('view-student-detail').classList.contains('hidden')) {
+                openStudentDetail(currentDetailStudentId, false);
+            }
+
+            updateStorageMetricsUI('stor_status_from_cloud');
+            logSDK(`CloudStorage pull OK: st=${students.length}, ev=${eventsLog.length}, pl=${plannedLessons.length}`);
+            if (isManualTrigger) {
+                triggerHaptic('success');
+                showToast(t('toast_cloud_loaded'));
+            }
         }
 
         function loadDataFromLocal() {
@@ -1950,7 +2120,7 @@
                 : 'text-[10px] font-medium text-emerald-400';
         }
 
-        function flushSessionNow() {
+        function flushSessionNow(forceCloudPush = false) {
             if (!Array.isArray(students) || students.length === 0) return;
             if (eventsLog.length > MAX_EVENTS_HISTORY) {
                 eventsLog = eventsLog.slice(0, MAX_EVENTS_HISTORY);
@@ -1963,7 +2133,11 @@
                 localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(eventsLog));
                 localStorage.setItem(STORAGE_KEY_PLANNED, JSON.stringify(plannedLessons));
             } catch (e) {}
-            syncDataToTelegramCloud(false);
+
+            // Отправляем данные в TG Cloud только если были реальные изменения или принудительный вызов
+            if (forceCloudPush || hasUnsavedChanges) {
+                syncDataToTelegramCloud(false);
+            }
             markLiveSaveStatus(false);
         }
 
@@ -1976,8 +2150,9 @@
         }
 
         function saveData() {
+            hasUnsavedChanges = true;
             markLiveSaveStatus(true);
-            flushSessionNow();
+            flushSessionNow(true);
             updateAllViews();
         }
 
